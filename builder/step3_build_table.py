@@ -15,6 +15,7 @@ OUT_DIR = str(RAW_DIR)
 IN_CSB = os.path.join(OUT_DIR, "raw_csb_sample.json")
 POWER_DIR = os.path.join(OUT_DIR, "raw_power")
 SSURGO_FILE = os.path.join(OUT_DIR, "raw_ssurgo.jsonl")
+SSURGO_AREA_FILE = os.path.join(OUT_DIR, "raw_ssurgo_area.jsonl")
 OUT_CHUNKS = str(PUBLIC_DIR / "chunks.json")
 IN_CROPS = os.path.join(OUT_DIR, "crops.json")
 OUT_CROPS = str(PUBLIC_DIR / "crops.json")
@@ -70,7 +71,9 @@ def safe_float(val):
         return None
 
 
-def compute_soil_for_chunk(rows: list) -> tuple[dict | None, str]:
+def compute_soil_for_chunk(rows: list, areas: dict) -> tuple[dict | None, str]:
+    """토양 값 = Σ(토양 구역이 청크와 겹친 면적 비율 × 구역 안 토양 종류 구성비) 가중평균.
+    areas: mukey → 청크 경계와 겹친 넓이 (2단계 2C). 구역 사이 비율로만 쓴다."""
     if not rows:
         return None, "empty_ssurgo"
 
@@ -114,6 +117,16 @@ def compute_soil_for_chunk(rows: list) -> tuple[dict | None, str]:
                 "ec": safe_float(r[19]),
             })
 
+    # 토양 구역(mukey)마다 겹친 면적 비율과 구성비 합
+    mu_total_pct = defaultdict(float)
+    for meta in comp_meta.values():
+        if meta["comppct_r"] is not None and meta["comppct_r"] > 0:
+            mu_total_pct[meta["mukey"]] += meta["comppct_r"]
+    area_sum = sum(areas.get(m, 0.0) for m in mu_total_pct)
+    if area_sum <= 0:
+        return None, "missing_area"
+    mu_frac = {m: areas.get(m, 0.0) / area_sum for m in mu_total_pct}
+
     total_pct = 0.0
     non_soil_pct = 0.0
     valid_comps = []
@@ -121,6 +134,10 @@ def compute_soil_for_chunk(rows: list) -> tuple[dict | None, str]:
     for key, meta in comp_meta.items():
         pct = meta["comppct_r"]
         if pct is None or pct <= 0:
+            continue
+        # 이 토양 종류가 청크에서 차지하는 몫 = 구역의 겹친 면적 비율 × 구역 안 구성비
+        pct = mu_frac[meta["mukey"]] * pct / mu_total_pct[meta["mukey"]]
+        if pct <= 0:
             continue
         total_pct += pct
         cname_low = meta["compname"].lower()
@@ -448,6 +465,13 @@ def main():
             obj = json.loads(line)
             ssurgo_by_id[obj["chunk_id"]] = obj["rows"]
 
+    area_by_id = {}
+    with open(SSURGO_AREA_FILE, encoding="utf-8") as f:
+        for line in f:
+            if line.strip():
+                obj = json.loads(line)
+                area_by_id[obj["chunk_id"]] = obj["areas"]
+
     # Compute climate per cell
     cells = sorted({x["climate_cell"] for x in samples})
     climate_by_cell = {}
@@ -473,7 +497,11 @@ def main():
         if s_rows is None:
             drop_reasons["missing_ssurgo"] += 1
             continue
-        soil, reason = compute_soil_for_chunk(s_rows)
+        s_areas = area_by_id.get(cid)
+        if s_areas is None:
+            drop_reasons["missing_area"] += 1
+            continue
+        soil, reason = compute_soil_for_chunk(s_rows, s_areas)
         if soil is None:
             drop_reasons[reason] += 1
             continue

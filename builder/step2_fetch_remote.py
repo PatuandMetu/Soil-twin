@@ -17,6 +17,7 @@ OUT_DIR = str(RAW_DIR)
 IN_CSB = os.path.join(OUT_DIR, "raw_csb_sample.json")
 POWER_DIR = os.path.join(OUT_DIR, "raw_power")
 SSURGO_FILE = os.path.join(OUT_DIR, "raw_ssurgo.jsonl")
+SSURGO_AREA_FILE = os.path.join(OUT_DIR, "raw_ssurgo_area.jsonl")
 
 SDA_URL = "https://sdmdataaccess.sc.egov.usda.gov/tabular/post.rest"
 
@@ -104,6 +105,49 @@ def fetch_ssurgo_chunk(item: dict) -> tuple[str, list | None, str]:
     return chunk_id, None, "failed"
 
 
+SDA_AREA_TEMPLATE = """SELECT P.mukey,
+ SUM(P.mupolygongeo.MakeValid().STIntersection(geometry::STGeomFromText('%(wkt)s', 4326).MakeValid()).STArea()) AS overlap
+FROM mupolygon P
+WHERE P.mupolygongeo.STIntersects(geometry::STGeomFromText('%(wkt)s', 4326).MakeValid()) = 1
+GROUP BY P.mukey"""
+
+
+def query_sda_area(wkt: str) -> dict:
+    """청크 경계와 겹치는 토양 구역(mukey)마다 겹친 넓이를 돌려준다. 단위는 경위도 제곱도.
+    밭 하나 안에서는 위도에 따른 축척 차이가 무시할 만해서, 구역 사이 비율로만 쓴다."""
+    sql = SDA_AREA_TEMPLATE % {"wkt": wkt}
+    body = urllib.parse.urlencode({"format": "JSON", "query": sql}).encode("utf-8")
+    req = urllib.request.Request(
+        SDA_URL,
+        data=body,
+        headers={"Content-Type": "application/x-www-form-urlencoded", "User-Agent": "Mozilla/5.0"},
+    )
+    with urllib.request.urlopen(req, timeout=90) as resp:
+        raw = resp.read()
+    if not raw:
+        return {}
+    rows = json.loads(raw).get("Table", [])
+    return {str(m): float(a) for m, a in rows if a is not None and float(a) > 0}
+
+
+def fetch_ssurgo_area(item: dict) -> tuple[str, dict | None, str, str]:
+    """토양 속성 조회(fetch_ssurgo_chunk)와 같은 영역 규칙을 쓴다: 경계 → 비면 안쪽 점 주변 네모."""
+    chunk_id = item["chunk_id"]
+    for attempt in range(3):
+        try:
+            if item.get("wkt"):
+                areas = query_sda_area(item["wkt"])
+                if areas:
+                    return chunk_id, areas, "polygon", "ok"
+            areas = query_sda_area(bbox_wkt(item["lat"], item["lon"]))
+            return chunk_id, areas, "bbox", "ok"
+        except Exception as e:
+            if attempt == 2:
+                return chunk_id, None, "", str(e)[:100]
+            time.sleep(1.0 * (attempt + 1))
+    return chunk_id, None, "", "failed"
+
+
 def main():
     os.makedirs(POWER_DIR, exist_ok=True)
     with open(IN_CSB, encoding="utf-8") as f:
@@ -171,6 +215,40 @@ def main():
                         f"[{el:.1f}s, {rate:.1f} chunks/s]",
                         flush=True,
                     )
+
+    # 토양 구역별 겹친 넓이 (면적 가중용)
+    done_area = set()
+    if os.path.exists(SSURGO_AREA_FILE):
+        with open(SSURGO_AREA_FILE, encoding="utf-8") as f:
+            for line in f:
+                try:
+                    obj = json.loads(line)
+                    if obj.get("areas") is not None:
+                        done_area.add(obj["chunk_id"])
+                except Exception:
+                    pass
+    todo_area = [x for x in samples if x["chunk_id"] not in done_area]
+    print(
+        f"=== Step 2C: Fetching SSURGO overlap areas for {len(todo_area)} chunks "
+        f"(already cached: {len(done_area)}) ===",
+        flush=True,
+    )
+    t2 = time.time()
+    ok_area = err_area = 0
+    with open(SSURGO_AREA_FILE, "a", encoding="utf-8") as out_f:
+        with ThreadPoolExecutor(max_workers=8) as ex:
+            futs = {ex.submit(fetch_ssurgo_area, item): item["chunk_id"] for item in todo_area}
+            for idx, fut in enumerate(as_completed(futs), 1):
+                cid, areas, kind, msg = fut.result()
+                if areas is not None:
+                    ok_area += 1
+                    out_f.write(json.dumps({"chunk_id": cid, "region": kind, "areas": areas}) + "\n")
+                else:
+                    err_area += 1
+                    print(f"  [AREA ERR] {cid}: {msg}", flush=True)
+                if idx % 200 == 0 or idx == len(todo_area):
+                    out_f.flush()
+                    print(f"  AREA {idx}/{len(todo_area)} (ok={ok_area}, err={err_area}) [{time.time() - t2:.1f}s]", flush=True)
 
     print("Done fetching remote sources!", flush=True)
 

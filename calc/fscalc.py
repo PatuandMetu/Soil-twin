@@ -220,6 +220,22 @@ def find_similar(ref: dict, chunks: list[dict], shifted: bool, names: dict | Non
     return {"gated_count": len(gated), "selected": selected, "similar": similar, "none_found": len(above) == 0}
 
 
+def pair_verdict(ref: dict, cand: dict, shifted: bool, names: dict | None = None) -> dict:
+    """두 청크만 놓고, 후보가 닮은 청크로 뽑힐 조건을 통과하는지 본다. 상위 K와 칸 상한은 여기서 보지 않는다."""
+    s = score_pair(profile(ref, shifted), profile(cand))
+    reasons = []
+    gate_ok = None
+    if shifted:
+        gate_ok = _exact(s["climate"]) >= P["shift_climate_gate"]
+        if not gate_ok:
+            reasons.append(f"시프트 기후 게이트 탈락 (기후 {s['climate']:.2f} < {P['shift_climate_gate']:g})")
+    if pattern_key(cand, names or {}) == "":
+        reasons.append("빈 패턴 (2번 이상 나온 작물 없음)")
+    if s["status"] not in ("twin", "constrained"):
+        reasons.append(f"상태 {s['status']}")
+    return {"score": s, "gate_ok": gate_ok, "eligible": not reasons, "reasons": reasons}
+
+
 # ---------------------------------------------------------------------------
 # 윤작 집계
 # ---------------------------------------------------------------------------
@@ -445,9 +461,17 @@ def main(argv: list[str] | None = None) -> None:
         sys.exit(2)
     if args.cmd == "pair":
         a, b = by_id(chunks, args.a), by_id(chunks, args.b)
-        s = score_pair(profile(a, args.shift), profile(b))
+        v = pair_verdict(a, b, args.shift, names)
+        s = v["score"]
         print(f"{args.a} → {args.b}{' (시프트)' if args.shift else ''}")
         print(f"종합 {s['total']:.3f}  토양 {s['soil']:.3f}  기후 {s['climate']:.3f}  상태 {s['status']}  경고 {s['warnings']}")
+        if args.shift:
+            mark = "통과" if v["gate_ok"] else "탈락"
+            print(f"시프트 기후 게이트: 기후 {s['climate']:.2f} {'≥' if v['gate_ok'] else '<'} {P['shift_climate_gate']:g} → {mark}")
+        if v["eligible"]:
+            print("닮은 청크 조건: 통과 (상위 K·기후 칸 상한은 ref 명령에서 적용)")
+        else:
+            print(f"닮은 청크 조건: 탈락 — {'; '.join(v['reasons'])}")
         print(f"{'항목':<18}{'가중치':>8}{'점수':>10}{'감점':>9}")
         for k, it in sorted(s["items"].items(), key=lambda x: -x[1]["penalty"]):
             print(f"{k:<18}{it['weight']:>8.2f}{it['score']:>10.3f}{it['penalty']:>9.3f}")

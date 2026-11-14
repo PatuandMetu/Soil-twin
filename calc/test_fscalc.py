@@ -339,6 +339,30 @@ class Rules(unittest.TestCase):
         self.assertEqual([p["key"] for p in s["patterns"]], ["Fallow/Idle Cropland+Winter Wheat", "Corn+Soybeans"])
 
 
+class PairVerdict(unittest.TestCase):
+    def test_shift_gate_shown_in_pair(self):
+        ref = with_(chunk_id="R")
+        for k in F.TEMP_KEYS:
+            ref[f"s_{k}"] = ref[k] + 6.0  # 이웃(기후 같음)은 시프트 후 기후 ≈ 78.7 → 게이트 탈락
+        v = F.pair_verdict(ref, with_(chunk_id="N"), shifted=True)
+        self.assertGreaterEqual(v["score"]["total"], F.P["tau"])  # 종합만 보면 닮은 청크처럼 보이지만
+        self.assertFalse(v["gate_ok"])
+        self.assertFalse(v["eligible"])
+        self.assertIsNone(F.pair_verdict(ref, with_(chunk_id="N"), shifted=False)["gate_ok"])
+
+    def test_verdict_matches_find_similar(self):
+        # 상위 K·칸 상한이 걸리지 않는 크기에서는 pair 판정과 ref 결과가 같아야 한다.
+        chunks, names = F.load(FAKE)
+        for ref in chunks[:12]:
+            for shifted in (False, True):
+                chosen = {c["chunk_id"] for c, _ in F.find_similar(ref, chunks, shifted, names)["selected"]}
+                for c in chunks:
+                    if c["chunk_id"] == ref["chunk_id"]:
+                        continue
+                    with self.subTest(ref=ref["chunk_id"], cand=c["chunk_id"], shifted=shifted):
+                        self.assertEqual(F.pair_verdict(ref, c, shifted, names)["eligible"], c["chunk_id"] in chosen)
+
+
 class Total(unittest.TestCase):
     def test_only_slope_differs(self):
         # 경사만 50점 → 종합 = 100 − 0.06·50 = 97, 토양 블록 = 100 − 0.06·50/0.55

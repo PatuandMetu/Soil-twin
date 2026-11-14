@@ -111,3 +111,7 @@ dist
 
 # TernJS port file
 .tern-port
+
+# builder 원천 원본과 원천 응답 (크고, 원천에서 다시 받을 수 있음)
+builder/source/
+builder/raw/

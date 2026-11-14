@@ -19,6 +19,8 @@ def base() -> dict:
     """모든 값이 같은 기본 청크."""
     row = {
         "chunk_id": "X",
+        "lat": 42.0,
+        "lon": -93.5,
         "climate_cell": "C",
         "acres": 100,
         "sand": 40.0,
@@ -52,6 +54,8 @@ def base() -> dict:
 
 def with_(**kw) -> dict:
     r = base()
+    if kw.get("chunk_id") == "R" and "lat" not in kw:
+        r["lat"] = 40.0
     r.update(kw)
     return r
 
@@ -557,6 +561,36 @@ class Select(unittest.TestCase):
         ids = [c["chunk_id"] for c, _ in r["selected"]]
         self.assertEqual(ids, ["WARM"])
         self.assertEqual(r["gated_count"], 1)
+
+
+class Distance(unittest.TestCase):
+    """기준 청크에서 min_distance_km(100 km) 미만인 청크는 후보에서 제외한다."""
+
+    def test_haversine_known_distance(self):
+        # 같은 경도에서 위도 1도 차이 = 6371 * pi / 180 ≈ 111.19492664455873 km
+        a = with_(lat=40.0, lon=-93.5)
+        b = with_(lat=41.0, lon=-93.5)
+        self.assertAlmostEqual(F.distance_km(a, b), 6371.0 * math.pi / 180.0, places=9)
+
+    def test_closer_than_min_distance_is_excluded(self):
+        ref = with_(chunk_id="R", lat=40.0, lon=-93.5)
+        near = with_(chunk_id="NEAR", lat=40.5, lon=-93.5)  # ~55.6 km (< 100 km)
+        far = with_(chunk_id="FAR", lat=41.0, lon=-93.5)    # ~111.2 km (≥ 100 km)
+        r = F.find_similar(ref, [ref, near, far], shifted=False)
+        self.assertEqual([c["chunk_id"] for c, _ in r["selected"]], ["FAR"])
+        v_near = F.pair_verdict(ref, near, shifted=False)
+        self.assertFalse(v_near["distance_ok"])
+        self.assertFalse(v_near["eligible"])
+
+    def test_exact_100km_boundary(self):
+        # 같은 경도에서 정확히 100 km가 되는 위도 차이: dlat = (100 / 6371) * (180 / pi)
+        dlat = math.degrees(100.0 / 6371.0)
+        ref = with_(chunk_id="R", lat=40.0, lon=-93.5)
+        exact100 = with_(chunk_id="EXACT", lat=40.0 + dlat, lon=-93.5)
+        just_under = with_(chunk_id="UNDER", lat=40.0 + dlat - 1e-6, lon=-93.5)
+        self.assertAlmostEqual(F.distance_km(ref, exact100), 100.0, places=9)
+        r = F.find_similar(ref, [ref, exact100, just_under], shifted=False)
+        self.assertEqual([c["chunk_id"] for c, _ in r["selected"]], ["EXACT"])
 
 
 if __name__ == "__main__":

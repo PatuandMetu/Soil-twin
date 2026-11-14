@@ -31,6 +31,8 @@ from pathlib import Path
 P = {
     "tau": 80.0,
     "top_k": 30,
+    "min_distance_km": 100.0,
+    "earth_radius_km": 6371.0,
     "shift_climate_gate": 85.0,
     "cell_cap": 10,
     "pattern_min_count": 2,
@@ -97,6 +99,16 @@ def _exact(x: float) -> float:
 def grade(x: float) -> int:
     """면적 가중 평균(실수)으로 저장된 배수·침수 등급을 정수 등급으로 분류한다. 반올림, 0.5는 올림."""
     return math.floor(_exact(x) + 0.5)
+
+
+def distance_km(a: dict, b: dict) -> float:
+    """두 청크 중심(lat, lon) 사이의 대원거리(km). Haversine, 지구 반지름 6,371 km."""
+    p1 = math.radians(a["lat"])
+    p2 = math.radians(b["lat"])
+    dp = math.radians(b["lat"] - a["lat"])
+    dl = math.radians(b["lon"] - a["lon"])
+    h = math.sin(dp / 2.0) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dl / 2.0) ** 2
+    return 2.0 * P["earth_radius_km"] * math.atan2(math.sqrt(h), math.sqrt(max(0.0, 1.0 - h)))
 
 
 # ---------------------------------------------------------------------------
@@ -204,11 +216,13 @@ def profile(chunk: dict, shifted: bool = False) -> dict:
 def find_similar(ref: dict, chunks: list[dict], shifted: bool, names: dict | None = None) -> dict:
     names = names or {}
     rp = profile(ref, shifted)
-    # 기준 청크 자신과, 2번 이상 나온 작물이 없는 청크(빈 패턴)는 후보가 아니다.
+    # 기준 청크 자신, 최소 거리 미만인 청크, 2번 이상 나온 작물이 없는 청크(빈 패턴)는 후보가 아니다.
     cands = [
         (c, score_pair(rp, profile(c)))
         for c in chunks
-        if c["chunk_id"] != ref["chunk_id"] and pattern_key(c, names) != ""
+        if c["chunk_id"] != ref["chunk_id"]
+        and _exact(distance_km(ref, c)) >= P["min_distance_km"]
+        and pattern_key(c, names) != ""
     ]
     cands.sort(key=lambda x: (-x[1]["total"], x[0]["chunk_id"]))
     gated = [x for x in cands if _exact(x[1]["climate"]) >= P["shift_climate_gate"]] if shifted else cands
@@ -223,7 +237,11 @@ def find_similar(ref: dict, chunks: list[dict], shifted: bool, names: dict | Non
 def pair_verdict(ref: dict, cand: dict, shifted: bool, names: dict | None = None) -> dict:
     """두 청크만 놓고, 후보가 닮은 청크로 뽑힐 조건을 통과하는지 본다. 상위 K와 칸 상한은 여기서 보지 않는다."""
     s = score_pair(profile(ref, shifted), profile(cand))
+    dist = distance_km(ref, cand)
+    dist_ok = _exact(dist) >= P["min_distance_km"]
     reasons = []
+    if not dist_ok:
+        reasons.append(f"최소 거리 미달 ({dist:.2f} km < {P['min_distance_km']:g} km)")
     gate_ok = None
     if shifted:
         gate_ok = _exact(s["climate"]) >= P["shift_climate_gate"]
@@ -233,7 +251,14 @@ def pair_verdict(ref: dict, cand: dict, shifted: bool, names: dict | None = None
         reasons.append("빈 패턴 (2번 이상 나온 작물 없음)")
     if s["status"] not in ("twin", "constrained"):
         reasons.append(f"상태 {s['status']}")
-    return {"score": s, "gate_ok": gate_ok, "eligible": not reasons, "reasons": reasons}
+    return {
+        "score": s,
+        "distance_km": dist,
+        "distance_ok": dist_ok,
+        "gate_ok": gate_ok,
+        "eligible": not reasons,
+        "reasons": reasons,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -463,7 +488,7 @@ def main(argv: list[str] | None = None) -> None:
         a, b = by_id(chunks, args.a), by_id(chunks, args.b)
         v = pair_verdict(a, b, args.shift, names)
         s = v["score"]
-        print(f"{args.a} → {args.b}{' (시프트)' if args.shift else ''}")
+        print(f"{args.a} → {args.b}{' (시프트)' if args.shift else ''}  거리 {v['distance_km']:.2f} km")
         print(f"종합 {s['total']:.3f}  토양 {s['soil']:.3f}  기후 {s['climate']:.3f}  상태 {s['status']}  경고 {s['warnings']}")
         if args.shift:
             mark = "통과" if v["gate_ok"] else "탈락"

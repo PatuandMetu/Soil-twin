@@ -1,5 +1,6 @@
 // 가짜 청크 테이블 생성기. seed 고정이라 다시 돌려도 같은 파일이 나온다.
-// 실행: npm run data:fake  →  public/data/chunks.fake.json, public/data/crops.json
+// 실행: npm run data:fake  →  public/data/chunks.fake.json
+// crops.json은 builder/가 만든 실데이터 파일이라 여기서 쓰지 않는다. 가짜 데이터도 그 이름표를 같이 쓴다.
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -35,18 +36,9 @@ const r3 = (x) => Math.round(x * 1000) / 1000
 const clamp = (x, lo, hi) => Math.min(hi, Math.max(lo, x))
 
 // ---- 작물 코드 ----
-const CROPS = {
-  1: 'Corn',
-  4: 'Sorghum',
-  5: 'Soybeans',
-  21: 'Barley',
-  24: 'Winter Wheat',
-  28: 'Oats',
-  36: 'Alfalfa',
-  37: 'Other Hay/Non Alfalfa',
-  61: 'Fallow/Idle Cropland',
-  176: 'Grassland/Pasture',
-}
+// 1 Corn, 4 Sorghum, 5 Soybeans, 21 Barley, 24 Winter Wheat, 28 Oats, 36 Alfalfa,
+// 37 Other Hay/Non Alfalfa, 61 Fallow/Idle Cropland, 176 Grassland/Pasture
+// (176은 실데이터 crops.json에 없어서 화면에 "CDL 176"으로 나온다)
 
 // ---- 기후 칸 (약 50 km 격자 하나에 기후 값 하나) ----
 const CELLS = [
@@ -206,5 +198,4 @@ if (nFields !== 84) throw new Error(`필드 수가 84가 아님: ${nFields}`)
 
 mkdirSync(OUT_DIR, { recursive: true })
 writeFileSync(join(OUT_DIR, 'chunks.fake.json'), JSON.stringify(rows))
-writeFileSync(join(OUT_DIR, 'crops.json'), JSON.stringify(CROPS, null, 2) + '\n')
 console.log(`chunks.fake.json: ${rows.length}행 × ${nFields}필드, 기후 칸 ${CELLS.length}개`)

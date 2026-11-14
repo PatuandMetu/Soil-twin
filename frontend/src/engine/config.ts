@@ -17,8 +17,10 @@ export const config = {
   /** 문턱·경계 비교는 소수 이 자리에서 반올림한 값으로 한다. 점수 자체는 반올림하지 않는다. */
   comparePrecision: 9,
 
-  /** climate_only 판정 */
-  climateOnly: { climateMin: 80, soilMax: 65 },
+  /** 핵심 닮은 청크(twin·constrained)의 토양 블록 하한. 미만이면 닮은 청크로 고르지 않는다. */
+  soilMin: 65,
+  /** climate_only 판정: 토양 블록 < soilMin 이고 기후 블록 ≥ climateMin (종합과 무관) */
+  climateOnly: { climateMin: 80 },
 
   /** 가우시안 허용 폭 t: 차이가 t면 50점 */
   tolerance: {

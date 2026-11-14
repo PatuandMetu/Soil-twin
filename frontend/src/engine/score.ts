@@ -140,10 +140,14 @@ export function passesShiftGate(climate: number, cfg: Config = defaultConfig): b
   return exact(climate, cfg) >= cfg.shiftClimateGate
 }
 
+/**
+ * 상태. 종합 ≥ τ 이고 토양 ≥ soilMin → twin(경고 없음) / constrained(경고 있음).
+ * 기후 ≥ climateOnly.climateMin 이고 토양 < soilMin → climate_only (종합과 무관). 그 외 none.
+ */
 export function statusOf(total: number, soil: number, climate: number, nWarnings: number, cfg: Config = defaultConfig): Status {
-  if (meetsTau(total, cfg)) return nWarnings === 0 ? 'twin' : 'constrained'
-  if (exact(climate, cfg) >= cfg.climateOnly.climateMin && exact(soil, cfg) < cfg.climateOnly.soilMax)
-    return 'climate_only'
+  const soilOk = exact(soil, cfg) >= cfg.soilMin
+  if (meetsTau(total, cfg) && soilOk) return nWarnings === 0 ? 'twin' : 'constrained'
+  if (exact(climate, cfg) >= cfg.climateOnly.climateMin && !soilOk) return 'climate_only'
   return 'none'
 }
 

@@ -211,10 +211,16 @@ describe('재배 제약 경고', () => {
 })
 
 describe('상태', () => {
-  it('climate_only: 기후 ≥ 80, 토양 < 65, 종합 < τ', () => {
-    expect(statusOf(70, 50, 95, 0)).toBe('climate_only')
-    expect(statusOf(70, 70, 95, 0)).toBe('none')
+  it('twin·constrained: 종합 ≥ τ 이고 토양 ≥ 65', () => {
+    expect(statusOf(85, 70, 95, 0)).toBe('twin')
     expect(statusOf(85, 70, 95, 1)).toBe('constrained')
+    expect(statusOf(85, 65, 100, 1)).toBe('constrained')
+  })
+  it('climate_only: 기후 ≥ 80 이고 토양 < 65 (종합과 무관)', () => {
+    expect(statusOf(70, 50, 95, 0)).toBe('climate_only')
+    expect(statusOf(85, 64.9, 100, 0)).toBe('climate_only')
+    expect(statusOf(70, 70, 95, 0)).toBe('none')
+    expect(statusOf(70, 50, 79.9, 0)).toBe('none')
   })
 })
 
@@ -232,14 +238,16 @@ describe('경계 비교 (소수 9자리 반올림)', () => {
   })
 
   it('종합 점수가 수학적으로 정확히 80인 후보가 선택된다', () => {
-    // 감점: 토성 7.5(d 0.22 = t) + 유효수분 5(Δ 50 = t) + 산도 3(Δ 0.9 = t) + 유기물 1.5(Δ 2.2 = t)
-    //       + CEC 1.5(Δ 9 = t) + 경사 1.5(Δ 2.5 → 75점) = 20 → 종합 80
+    // 토양 감점: 토성 7.5(d 0.22 = t) + 유효수분 5(Δ 50 = t) + 산도 3(Δ 0.9 = t) + 유기물 1.5(Δ 2.2 = t)
+    //            + 암반·염류 0.5(암반 Δ 75) = 17.5 → 토양 68.2
+    // 기후 감점: 무상기간 2.5(Δ 28 = t) → 기후 94.4. 종합 = 100 − 17.5 − 2.5 = 80
     // 부동소수점 꼬리로 80 바로 밑이 되는 경우는 아래 meetsTau 테스트가 맡는다.
     const ref = makeChunk('ref')
-    const cand = makeChunk('cand', { sand: 52, silt: 28, aws_mm: 250, ph: 7.4, om: 5.2, cec: 29, slope: 4.5 })
+    const cand = makeChunk('cand', { sand: 52, silt: 28, aws_mm: 250, ph: 7.4, om: 5.2, bedrock_cm: 125, ffd: 188 })
     const r = findSimilar(ref, [ref, cand], false)
     const s = r.candidates[0].score
     expect(s.total).toBeCloseTo(80, 9)
+    expect(s.soil).toBeGreaterThanOrEqual(config.soilMin)
     expect(s.warnings).toEqual([])
     expect(s.status).toBe('twin')
     expect(r.selected.map((x) => x.chunk.chunk_id)).toEqual(['cand'])
@@ -252,6 +260,7 @@ describe('경계 비교 (소수 9자리 반올림)', () => {
     expect(passesShiftGate(85 - 1e-12)).toBe(true)
     expect(passesShiftGate(85 - 1e-6)).toBe(false)
     expect(statusOf(80 - 1e-12, 100, 100, 0)).toBe('twin')
+    expect(statusOf(85, 65 - 1e-12, 100, 0)).toBe('twin') // 토양 65 − 1e-12도 65 이상으로 본다
     // 토양 65 − 1e-12는 65로 보므로 "토양 < 65"가 아니다
     expect(statusOf(70, 65 - 1e-12, 80 - 1e-12, 0)).toBe('none')
     expect(statusOf(70, 65 - 1e-6, 80 - 1e-12, 0)).toBe('climate_only')
@@ -262,6 +271,32 @@ describe('경계 비교 (소수 9자리 반올림)', () => {
     const ph = s.items.find((it) => it.key === 'ph')!
     expect(ph.score).not.toBe(50)
     expect(ph.score).toBeCloseTo(50, 9)
+  })
+})
+
+describe('핵심 닮은 청크는 토양 점수 65 이상', () => {
+  // 토양 감점: 토성 7.5 + 유효수분 5 + 산도 3 + 유기물 1.5 + CEC 1.5 + 경사 0.75(Δ 1.25) = 19.25
+  // → 토양 정확히 65, 기후 100 → 종합 80.75
+  const ref = makeChunk('ref')
+  const soil65 = { sand: 52, silt: 28, aws_mm: 250, ph: 7.4, om: 5.2, cec: 29 }
+
+  it('종합 80.75·토양 정확히 65 → twin, 선택됨', () => {
+    const r = findSimilar(ref, [ref, makeChunk('cand', { ...soil65, slope: 3.25 })], false, NAMES)
+    const s = r.candidates[0].score
+    expect(s.total).toBeCloseTo(80.75, 9)
+    expect(s.soil).toBeCloseTo(65, 9)
+    expect(s.status).toBe('twin')
+    expect(r.similar.map((x) => x.chunk.chunk_id)).toEqual(['cand'])
+  })
+
+  it('토양 65 바로 아래 → 종합이 τ 이상이어도 climate_only, 선택 안 됨', () => {
+    const r = findSimilar(ref, [ref, makeChunk('cand', { ...soil65, slope: 3.26 })], false, NAMES)
+    const s = r.candidates[0].score
+    expect(s.total).toBeGreaterThanOrEqual(config.tau)
+    expect(s.soil).toBeLessThan(65)
+    expect(s.status).toBe('climate_only')
+    expect(r.similar).toEqual([])
+    expect(r.noneFound).toBe(true)
   })
 })
 

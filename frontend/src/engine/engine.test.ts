@@ -72,6 +72,13 @@ function makeChunk(id: string, over: Partial<Chunk> = {}, cur: Climate = CURRENT
 }
 
 const withCrops = (codes: number[]) => Object.fromEntries(CROP_KEYS.map((k, i) => [k, codes[i]])) as Partial<Chunk>
+const CORN_SOY = withCrops([1, 5, 1, 5, 1, 5, 1, 5])
+const EMPTY = withCrops([1, 5, 24, 61, 36, 21, 28, 4]) // 8년 모두 다른 작물 → 빈 패턴
+
+const scoredOf = (chunk: Chunk, total = 90): Scored => ({
+  chunk,
+  score: { total, soil: total, climate: total, items: [], warnings: [], status: 'twin' },
+})
 
 describe('점수', () => {
   it('같은 행끼리는 100점, 경고 없음, twin', () => {
@@ -293,41 +300,71 @@ describe('기후 칸 상한', () => {
   })
 })
 
-describe('윤작 집계: 빈 패턴 청크 제외', () => {
-  const CORN_SOY = withCrops([1, 5, 1, 5, 1, 5, 1, 5])
-  const EMPTY = withCrops([1, 5, 24, 61, 36, 21, 28, 4]) // 8년 모두 다른 작물 → 빈 패턴
-  const scored = (id: string, cell: string, total: number, crops: Partial<Chunk>, acres = 100): Scored => ({
-    chunk: makeChunk(id, { climate_cell: cell, acres, ...crops }),
-    score: { total, soil: total, climate: total, items: [], warnings: [], status: 'twin' },
+describe('고르기 순서: 빈 패턴 제외 → 닮은 청크 조건 → 기후 칸 상한 → 상위 K', () => {
+  const ref = makeChunk('ref', CORN_SOY)
+  const many = (cell: string, n: number) =>
+    Array.from({ length: n }, (_, i) => makeChunk(`${cell}${String(i).padStart(2, '0')}`, { climate_cell: cell }))
+
+  it('한 칸에 25개, 다른 칸에 15개가 문턱을 넘으면 목록 20개(10 + 10), 카드 분모 20', () => {
+    const r = findSimilar(ref, [ref, ...many('A', 25), ...many('B', 15)], false, NAMES)
+    const cells = r.similar.map((s) => s.chunk.climate_cell)
+    expect(cells.filter((c) => c === 'A')).toHaveLength(10)
+    expect(cells.filter((c) => c === 'B')).toHaveLength(10)
+    const sum = summarizeRotations(ref, r.similar, NAMES)
+    expect(sum.counted).toHaveLength(20)
+    expect(sum.current).toMatchObject({ key: 'Corn+Soybeans', count: 20, total: 20 })
   })
 
-  it('빈 패턴 청크는 분모와 기후 칸 상한 자리를 차지하지 않는다', () => {
-    const similar = [
-      // 칸 A에서 점수가 가장 높은 3개가 빈 패턴. 빼지 않으면 상한 10개 중 3자리를 차지한다.
-      ...Array.from({ length: 3 }, (_, i) => scored(`E${i}`, 'A', 95 + i, EMPTY)),
-      ...Array.from({ length: 10 }, (_, i) => scored(`P${i}`, 'A', 80 + i, CORN_SOY)),
-      scored('EB', 'B', 99, EMPTY, 500),
-    ]
+  it('칸 4개에 10개씩이면 상위 30개로 잘린다', () => {
+    const all = [ref, ...many('A', 10), ...many('B', 10), ...many('C', 10), ...many('D', 10)]
+    const r = findSimilar(ref, all, false, NAMES)
+    expect(r.similar).toHaveLength(config.topK)
+    // 점수가 모두 같으면 chunk_id 순이라 D 칸이 잘린다
+    expect(r.similar.some((s) => s.chunk.climate_cell === 'D')).toBe(false)
+  })
+
+  it('빈 패턴 청크는 기준 청크와 100점이어도 후보가 아니고, 칸 상한 자리를 차지하지 않는다', () => {
+    const empties = Array.from({ length: 3 }, (_, i) => makeChunk(`E${i}`, { climate_cell: 'A', ...EMPTY }))
+    expect(scorePair(profileOf(ref), profileOf(empties[0])).total).toBeCloseTo(100, 9)
+    const r = findSimilar(ref, [ref, ...empties, ...many('A', 10)], false, NAMES)
+    expect(r.candidates.some((s) => s.chunk.chunk_id.startsWith('E'))).toBe(false)
+    expect(r.similar).toHaveLength(10)
+    expect(r.similar.every((s) => s.chunk.chunk_id.startsWith('A'))).toBe(true)
+  })
+
+  it('빈 패턴만 문턱을 넘으면 닮은 청크 없음', () => {
+    // far는 토양이 많이 달라 문턱 아래
+    const far = makeChunk('far', { sand: 85, silt: 10, clay: 5, aws_mm: 80, drainage: 7, ph: 8.4 })
+    const r = findSimilar(ref, [ref, makeChunk('E0', EMPTY), far], false, NAMES)
+    expect(r.candidates.map((s) => s.chunk.chunk_id)).toEqual(['far'])
+    expect(r.noneFound).toBe(true)
+    expect(r.similar).toEqual([])
+  })
+
+  it('이름표를 주지 않으면 작물 코드로 빈 패턴을 판정한다', () => {
+    const r = findSimilar(ref, [ref, makeChunk('E0', EMPTY), makeChunk('P0')], false)
+    expect(r.similar.map((s) => s.chunk.chunk_id)).toEqual(['P0'])
+  })
+})
+
+describe('윤작 집계', () => {
+  it('받은 닮은 청크를 그대로 센다 (칸 상한·빈 패턴 제외를 다시 하지 않음)', () => {
+    const similar = Array.from({ length: 12 }, (_, i) => scoredOf(makeChunk(`P${i}`, CORN_SOY)))
     const sum = summarizeRotations(makeChunk('ref', CORN_SOY), similar, NAMES)
-    expect(sum.counted.map((s) => s.chunk.chunk_id).sort()).toEqual(
-      Array.from({ length: 10 }, (_, i) => `P${i}`).sort(),
-    )
-    expect(sum.patterns.map((p) => p.key)).toEqual(['Corn+Soybeans'])
+    expect(sum.counted).toHaveLength(12)
     expect(sum.current).toMatchObject({
       key: 'Corn+Soybeans',
-      count: 10,
-      total: 10,
-      acres: 1000,
-      totalAcres: 1000,
+      count: 12,
+      total: 12,
+      acres: 1200,
+      totalAcres: 1200,
       areaShare: 1,
       cellCount: 1,
     })
-    expect(similar).toHaveLength(14) // 입력한 닮은 청크 목록은 그대로
   })
 
   it('기준 청크가 빈 패턴이면 현재 윤작 카드는 count 0', () => {
-    const similar = [scored('P0', 'A', 90, CORN_SOY), scored('E0', 'A', 95, EMPTY)]
-    const sum = summarizeRotations(makeChunk('ref', EMPTY), similar, NAMES)
+    const sum = summarizeRotations(makeChunk('ref', EMPTY), [scoredOf(makeChunk('P0', CORN_SOY))], NAMES)
     expect(sum.current).toMatchObject({ key: '', count: 0, total: 1 })
     expect(sum.cards.map((c) => c.key)).toEqual(['', 'Corn+Soybeans'])
   })
@@ -363,7 +400,7 @@ describe('기후 시프트 모드', () => {
   })
 
   it('τ 이상 후보가 없으면 noneFound', () => {
-    const r = findSimilar(ref, all, true, { ...config, shiftClimateGate: 101 })
+    const r = findSimilar(ref, all, true, NAMES, { ...config, shiftClimateGate: 101 })
     expect(r.noneFound).toBe(true)
     expect(r.similar).toEqual([])
   })

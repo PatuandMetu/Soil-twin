@@ -1,11 +1,11 @@
-import type { RotationSummary } from '../engine'
+import { config, type RotationSummary } from '../engine'
 import { patternLabel, pct } from '../labels'
 
 export function RotationCards({ summary }: { summary: RotationSummary }) {
   return (
     <section>
       <h2>
-        윤작 비교 <small>(센 닮은 청크 {summary.counted.length}개, 기후 칸당 최대 10개)</small>
+        윤작 비교 <small>(센 닮은 청크 {summary.counted.length}개, 기후 칸당 최대 {config.cellCap}개)</small>
       </h2>
       <div className="cards">
         {summary.cards.map((p, i) => (

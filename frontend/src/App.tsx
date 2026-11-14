@@ -24,7 +24,10 @@ export default function App() {
   }, [])
 
   const ref = useMemo(() => data?.chunks.find((c) => c.chunk_id === refId) ?? null, [data, refId])
-  const result = useMemo(() => (data && ref ? findSimilar(ref, data.chunks, shifted) : null), [data, ref, shifted])
+  const result = useMemo(
+    () => (data && ref ? findSimilar(ref, data.chunks, shifted, data.crops) : null),
+    [data, ref, shifted],
+  )
   const summary = useMemo(
     () => (data && ref && result ? summarizeRotations(ref, result.similar, data.crops) : null),
     [data, ref, result],

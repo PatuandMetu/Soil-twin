@@ -1,5 +1,4 @@
 import { config as defaultConfig, type Config } from './config'
-import { byScoreDesc } from './select'
 import { CROP_KEYS, type Chunk, type CropNames, type Scored } from './types'
 
 export function cropName(code: number, names: CropNames): string {
@@ -20,19 +19,6 @@ export function patternKey(chunk: Chunk, names: CropNames, minCount = defaultCon
     .join('+')
 }
 
-/** 한 기후 칸에서 최대 cap개만, 점수 높은 순으로 남긴다. */
-export function applyCellCap(similar: Scored[], cap: number): Scored[] {
-  const perCell = new Map<string, number>()
-  const out: Scored[] = []
-  for (const s of [...similar].sort(byScoreDesc)) {
-    const n = perCell.get(s.chunk.climate_cell) ?? 0
-    if (n >= cap) continue
-    perCell.set(s.chunk.climate_cell, n + 1)
-    out.push(s)
-  }
-  return out
-}
-
 export type PatternStat = {
   key: string
   /** 이 패턴인 청크 수 (분자) */
@@ -50,7 +36,7 @@ export type PatternStat = {
 }
 
 export type RotationSummary = {
-  /** 빈 패턴 청크를 빼고 기후 칸 상한을 적용한 뒤 실제로 센 닮은 청크 */
+  /** 센 닮은 청크: 받은 닮은 청크 그대로 (빈 패턴 제외와 기후 칸 상한은 findSimilar가 이미 했다) */
   counted: Scored[]
   /** 흔한 순 전체 패턴 */
   patterns: PatternStat[]
@@ -66,10 +52,9 @@ export function summarizeRotations(
   names: CropNames,
   cfg: Config = defaultConfig,
 ): RotationSummary {
-  // 2번 이상 나온 작물이 없는 청크(빈 패턴)는 분자·분모·기후 칸 상한 어디에도 넣지 않는다.
-  // 닮은 청크 목록(similar) 자체에서는 빼지 않고, 집계에서만 뺀다.
-  const withPattern = similar.filter((s) => patternKey(s.chunk, names, cfg.patternMinCount) !== '')
-  const counted = applyCellCap(withPattern, cfg.cellCap)
+  // 빈 패턴 제외와 기후 칸 상한은 findSimilar가 고를 때 이미 했다. 받은 닮은 청크를 그대로 센다.
+  // 그래서 목록 수 = 카드 분모다.
+  const counted = similar
   const total = counted.length
   const totalAcres = counted.reduce((s, x) => s + x.chunk.acres, 0)
 

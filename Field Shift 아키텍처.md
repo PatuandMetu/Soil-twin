@@ -193,14 +193,15 @@ flowchart TB
   - POWER 25년 일별 조회(변수 5개): 한 번에 약 2초, 0.7 MB, 결측 없음.
   - SSURGO 조회(겹치는 구역 + 토양 종류 + 0~30 cm 층을 한 질의로): 한 번에 약 1초. 동시 4개면 청크당 0.23초, 동시 8개면 0.13초, 오류 없음.
   - CSB 2018~2025: NASS가 전국 파일 하나(`NationalCSB_2018-2025_rev23.zip`, 3.76 GB)로만 준다. 안은 File Geodatabase(`CSB1825.gdb`, 주 테이블 5.27 GB)라 GDAL 계열 도구로 읽어야 한다. 이 노트북에서 받는 속도는 약 3.8 MB/s(약 17분).
-  - CSB 스키마 실측 (2026-11-15 새벽, Antigravity 확인): `해커톤/NationalCSB_2018-2025_rev23.zip` 다운로드 완료 후 `uv` 가상환경의 `pyogrio`(내장 OpenFileGDB 드라이버)로 조회 확인. 레이어는 `national1825`(`MultiPolygon`, 총 15,973,095개 청크), 좌표계는 NAD83 Albers Equal Area(`EPSG:5070` 계열, 단위 m). 열은 `CSBID`, `CSBYEARS`, `CSBACRES`, `CDL2018`~`CDL2025`(`int32`), `STATEFIPS`, `STATEASD`, `ASD`, `CNTY`, `CNTYFIPS`, `INSIDE_X`, `INSIDE_Y`, `ORIG_FID`, `Shape_Length`, `Shape_Area`.
+  - CSB 스키마 실측 (2026-11-15 새벽, Antigravity 확인): `NationalCSB_2018-2025_rev23.zip`(지금 위치 `builder/source/`) 다운로드 완료 후 `uv` 가상환경의 `pyogrio`(내장 OpenFileGDB 드라이버)로 조회 확인. 레이어는 `national1825`(`MultiPolygon`, 총 15,973,095개 청크), 좌표계는 NAD83 Albers Equal Area(`EPSG:5070` 계열, 단위 m). 열은 `CSBID`, `CSBYEARS`, `CSBACRES`, `CDL2018`~`CDL2025`(`int32`), `STATEFIPS`, `STATEASD`, `ASD`, `CNTY`, `CNTYFIPS`, `INSIDE_X`, `INSIDE_Y`, `ORIG_FID`, `Shape_Length`, `Shape_Area`.
 - 작물 값을 지점으로 묻는 실시간 API(GetCDLValue)는 타임아웃이 난다. 작물 이력은 CSB 파일을 받아서 써야 한다.
 - CSB 2018~2025판은 2026-03-27 공개. 경계는 위성 분류로 만든 것이라 소유권 경계가 아니고, 작물도 위성 분류라 틀릴 수 있다.
 - 비상업 라이선스 자료(POLARIS, STaPL)는 쓰지 않는다. 결과물과 외부 자료는 공개·오픈소스여야 한다는 대회 약관에 안 맞는다.
 
 ## 샘플링 기준 (1차 실데이터 테이블)
 
-- **사전 제외**: 너무 작은 조각(`CSBACRES < 10` 에이커)과 비농지·초지·휴경을 빼고 실제 재배 작물이 8년 중 2번 이상 나오지 않는 빈 패턴 청크는 CSB 추출 단계에서 먼저 뺀다.
+- **사전 제외**: 너무 작은 조각과 비농지·초지·휴경을 빼고 실제 재배 작물이 8년 중 2번 이상 나오지 않는 빈 패턴 청크는 CSB 추출 단계에서 먼저 뺀다. 실제 코드(`builder/step1_sample_csb.py`)의 면적 기준은 15~400 에이커이고, 주요 수확 작물이 2년 이상이어야 한다.
+- **빌더 위치**: 스크립트는 프로젝트 저장소 `builder/`에 있다. CSB 원본은 `builder/source/`, 원천 응답은 `builder/raw/`에 두고 git에서 뺀다(2026-11-15 vault에서 옮김).
 - **본토 층화 추출**: 미국 본토 전역(중서부뿐 아니라 시프트 모드 매칭 대상인 남부·대평원 고온·건조 지역 포함)에서 농경지가 있는 기후 칸 약 250~300개를 고르게 선택하고, 칸마다 8~10개 청크씩 총 2,000~2,500개를 뽑는다(Gate A 탈락분을 감안해 여유 있게 뽑아 최종 약 2,000개 확보).
 - **원천 분리 저장**: 추출한 CSB 표본, NASA POWER 칸별 일별 응답, SSURGO 청크별 응답은 원천 파일로 따로 저장해 두고, 계산 기준이 바뀌면 API 재호출 없이 빌더만 다시 돌린다.
 

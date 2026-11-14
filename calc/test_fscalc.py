@@ -301,6 +301,27 @@ class Rules(unittest.TestCase):
         r = F.find_similar(ref, [ref, *cells], shifted=False)
         self.assertEqual(len(r["selected"]), F.P["top_k"])
 
+    def test_ties_use_code_point_order(self):
+        # 문자 코드 순서에서는 대문자가 소문자보다 앞이다 ('B' 0x42 < 'a' 0x61). 로캘 비교면 반대가 된다.
+        ref = with_(chunk_id="R")
+        r = F.find_similar(ref, [ref, with_(chunk_id="a1"), with_(chunk_id="B1")], shifted=False)
+        self.assertEqual([c["chunk_id"] for c, _ in r["selected"]], ["B1", "a1"])
+        names = {"1": "Corn", "2": "barley"}
+
+        def seq(codes, **kw):
+            row = with_(**kw)
+            for k, c in zip(F.CROP_KEYS, codes):
+                row[k] = c
+            return row
+
+        self.assertEqual(F.pattern_key(seq([1, 2] * 4), names), "Corn+barley")
+        sim = [
+            (seq([2] * 8, chunk_id="X", acres=100), {"total": 90.0, "warnings": []}),
+            (seq([1] * 8, chunk_id="Y", acres=100), {"total": 90.0, "warnings": []}),
+        ]
+        pats = F.summarize(seq([5] * 8, chunk_id="R"), sim, names)["patterns"]
+        self.assertEqual([q["key"] for q in pats], ["Corn", "barley"])
+
     def test_patterns_tie_on_count_broken_by_area(self):
         names = {"1": "Corn", "5": "Soybeans", "24": "Winter Wheat", "61": "Fallow/Idle Cropland"}
 

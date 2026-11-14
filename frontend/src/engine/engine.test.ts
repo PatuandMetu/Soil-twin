@@ -10,6 +10,7 @@ import {
   exact,
   findSimilar,
   gaussian,
+  grade,
   meetsTau,
   passesShiftGate,
   patternKey,
@@ -119,6 +120,49 @@ describe('배수·침수', () => {
 
   it('침수 감점은 0 밑으로 내려가지 않는다', () => {
     expect(drainageFloodScore(ref, profileOf(makeChunk('b', { drainage: 7, flood: 3 })))).toBe(0)
+  })
+})
+
+describe('배수·침수 등급 (실수로 저장 → 정수 등급으로 분류)', () => {
+  it('grade는 반올림, 0.5는 올림', () => {
+    expect(grade(4.49)).toBe(4)
+    expect(grade(4.5)).toBe(5)
+    expect(grade(4.5 - 1e-12)).toBe(5) // 부동소수점 꼬리는 exact로 지운다
+    expect(grade(0.49)).toBe(0)
+    expect(grade(7)).toBe(7)
+  })
+
+  it('배수표는 등급 차로 찾고, 실수 drainage에서도 NaN이 나오지 않는다', () => {
+    const ref = profileOf(makeChunk('a', { drainage: 3 }))
+    const score = (drainage: number) => drainageFloodScore(ref, profileOf(makeChunk('b', { drainage })))
+    expect(score(3.4)).toBe(100) // 3 vs 3
+    expect(score(4.49)).toBe(75) // 3 vs 4
+    expect(score(4.5)).toBe(35) // 3 vs 5
+    expect(score(6.7)).toBe(10) // 3 vs 7
+  })
+
+  it('침수 −25는 정수 등급이 다를 때만', () => {
+    const ref = profileOf(makeChunk('a', { flood: 0 }))
+    expect(drainageFloodScore(ref, profileOf(makeChunk('b', { flood: 0.49 })))).toBe(100)
+    expect(drainageFloodScore(ref, profileOf(makeChunk('b', { flood: 0.5 })))).toBe(75)
+  })
+
+  it('경고의 배수·침수 차도 등급으로 계산', () => {
+    const ref = profileOf(makeChunk('a', { drainage: 3, flood: 0 }))
+    const codes = (over: Partial<Chunk>) => warnings(ref, profileOf(makeChunk('b', over))).map((w) => w.code)
+    expect(codes({ drainage: 4.5 })).toEqual(['drainage']) // 3 vs 5
+    expect(codes({ drainage: 4.49 })).toEqual([]) // 3 vs 4
+    expect(codes({ flood: 1.5 })).toEqual(['flood']) // 0 vs 2
+    expect(codes({ flood: 1.49 })).toEqual([]) // 0 vs 1
+  })
+
+  it('실수 등급 청크가 고르기에서 조용히 사라지지 않는다', () => {
+    const ref = makeChunk('ref', { drainage: 3, flood: 0 })
+    const cand = makeChunk('cand', { drainage: 3.4, flood: 0.3 })
+    const r = findSimilar(ref, [ref, cand], false)
+    expect(Number.isNaN(r.candidates[0].score.total)).toBe(false)
+    expect(r.candidates[0].score.total).toBeCloseTo(100, 9)
+    expect(r.selected.map((x) => x.chunk.chunk_id)).toEqual(['cand'])
   })
 })
 

@@ -21,6 +21,14 @@ export function exact(x: number, cfg: Config = defaultConfig): number {
   return Math.round(x * f) / f
 }
 
+/**
+ * 배수(1~7)·침수(0~5) 등급은 청크 안 토양 구역의 면적 가중 평균이라 실수로 온다.
+ * 점수와 경고에는 반올림한 정수 등급을 쓴다 (0.5는 올림: 4.5 → 5, 4.49 → 4).
+ */
+export function grade(x: number, cfg: Config = defaultConfig): number {
+  return Math.floor(exact(x, cfg) + 0.5)
+}
+
 /** 가우시안 점수: 차이가 t면 50점 */
 export function gaussian(a: number, b: number, t: number): number {
   const x = Math.abs(a - b) / t
@@ -47,10 +55,10 @@ export function textureScore(ref: Profile, cand: Profile, cfg: Config = defaultC
 }
 
 export function drainageFloodScore(ref: Profile, cand: Profile, cfg: Config = defaultConfig): number {
-  const diff = Math.abs(ref.drainage - cand.drainage)
+  const diff = Math.abs(grade(ref.drainage, cfg) - grade(cand.drainage, cfg))
   const table = cfg.drainageByDiff
   let s = table[Math.min(diff, table.length - 1)]
-  if (ref.flood !== cand.flood) s -= cfg.floodPenalty
+  if (grade(ref.flood, cfg) !== grade(cand.flood, cfg)) s -= cfg.floodPenalty
   return Math.max(0, s)
 }
 
@@ -92,10 +100,10 @@ export function warnings(ref: Profile, cand: Profile, cfg: Config = defaultConfi
   const g = cfg.gate
   const ex = (x: number) => exact(x, cfg)
   const out: Warning[] = []
-  if (ex(Math.abs(ref.drainage - cand.drainage)) >= g.drainageDiff)
+  if (Math.abs(grade(ref.drainage, cfg) - grade(cand.drainage, cfg)) >= g.drainageDiff)
     out.push({ code: 'drainage', ref: ref.drainage, cand: cand.drainage })
   if (ex(Math.abs(ref.ph - cand.ph)) > g.phDiff) out.push({ code: 'ph', ref: ref.ph, cand: cand.ph })
-  if (ex(Math.abs(ref.flood - cand.flood)) >= g.floodDiff)
+  if (Math.abs(grade(ref.flood, cfg) - grade(cand.flood, cfg)) >= g.floodDiff)
     out.push({ code: 'flood', ref: ref.flood, cand: cand.flood })
   if (ex(ref.bedrock_cm) < g.bedrockCm !== ex(cand.bedrock_cm) < g.bedrockCm)
     out.push({ code: 'bedrock', ref: ref.bedrock_cm, cand: cand.bedrock_cm })

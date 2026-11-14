@@ -1,7 +1,7 @@
 import type { Chunk, CropNames } from './engine'
 
-/** 진짜 데이터가 오면 VITE_CHUNKS_FILE로 바꾸거나 이 기본값만 바꾼다. */
-const CHUNKS_FILE = import.meta.env.VITE_CHUNKS_FILE ?? 'chunks.fake.json'
+/** 기본은 builder/가 만든 실데이터. 가짜 데이터로 볼 때는 VITE_CHUNKS_FILE=chunks.fake.json */
+const CHUNKS_FILE = import.meta.env.VITE_CHUNKS_FILE ?? 'chunks.json'
 
 async function getJson<T>(name: string): Promise<T> {
   const res = await fetch(`${import.meta.env.BASE_URL}data/${name}`)

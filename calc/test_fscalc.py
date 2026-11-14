@@ -1,0 +1,212 @@
+"""손으로 계산한 값으로 계산기를 검사한다. 실행: python3 -m unittest -v
+
+기대값은 식에 손으로 대입해 얻은 것이다. 가우시안은 차이/허용차이 비율 r에 대해 100·2^(-r²)이라
+r = 0.5 → 100·2^(-1/4) ≈ 84.0896, r = 1 → 50, r = 2 → 6.25 처럼 손으로 확인할 수 있다.
+"""
+
+import unittest
+
+import fscalc as F
+
+HALF = 84.08964152537145  # 100·2^(-0.25)
+
+
+def base() -> dict:
+    """모든 값이 같은 기본 청크."""
+    row = {
+        "chunk_id": "X",
+        "climate_cell": "C",
+        "acres": 100,
+        "sand": 40.0,
+        "silt": 40.0,
+        "clay": 20.0,
+        "aws_mm": 180.0,
+        "drainage": 3,
+        "flood": 0,
+        "ph": 6.5,
+        "om": 3.0,
+        "cec": 18.0,
+        "ec": 0.5,
+        "slope": 2.0,
+        "bedrock_cm": 200.0,
+        "ffd": 160.0,
+        "gdd10": 1600.0,
+        "heat_days": 10.0,
+        "gwet_summer": 0.5,
+        "drought_freq": 0.2,
+    }
+    for i, k in enumerate(F.TEMP_KEYS):
+        row[k] = float(i)
+    for i, k in enumerate(F.PRECIP_KEYS):
+        row[k] = 50.0 + i
+    for k in F.CLIMATE_KEYS:
+        row[f"s_{k}"] = row[k]
+    for k in F.CROP_KEYS:
+        row[k] = 1
+    return row
+
+
+def with_(**kw) -> dict:
+    r = base()
+    r.update(kw)
+    return r
+
+
+class Basics(unittest.TestCase):
+    def test_weights_sum_to_one(self):
+        self.assertAlmostEqual(sum(F.P["weights"].values()), 1.0, places=12)
+
+    def test_soil_block_weight_is_055(self):
+        self.assertAlmostEqual(sum(F.P["weights"][k] for k in F.P["soil_items"]), 0.55, places=12)
+
+    def test_same_row_is_100(self):
+        s = F.score_pair(base(), base())
+        self.assertAlmostEqual(s["total"], 100.0, places=9)
+        self.assertEqual(s["status"], "twin")
+        self.assertEqual(s["warnings"], [])
+
+    def test_gauss_points(self):
+        self.assertAlmostEqual(F.gauss(2.8, 2.8), 50.0, places=9)
+        self.assertAlmostEqual(F.gauss(1.4, 2.8), HALF, places=9)
+        self.assertAlmostEqual(F.gauss(-5.6, 2.8), 6.25, places=9)
+
+
+class Items(unittest.TestCase):
+    def score(self, **kw):
+        return F.item_scores(base(), with_(**kw))
+
+    def test_texture_distance(self):
+        # Δsand 11, Δclay 11 → 22/200 = 0.11 = 허용차이 0.22의 절반
+        self.assertAlmostEqual(self.score(sand=51.0, silt=40.0, clay=9.0)["texture"], HALF, places=9)
+
+    def test_aws(self):
+        self.assertAlmostEqual(self.score(aws_mm=230.0)["aws"], 50.0, places=9)
+
+    def test_drainage_table(self):
+        for d, want in [(1, 75.0), (2, 35.0), (3, 10.0), (4, 10.0)]:
+            self.assertEqual(self.score(drainage=3 + d)["drainage_flood"], want)
+
+    def test_flood_penalty_and_floor(self):
+        self.assertEqual(self.score(drainage=5, flood=1)["drainage_flood"], 10.0)  # 35 − 25
+        self.assertEqual(self.score(drainage=6, flood=1)["drainage_flood"], 0.0)  # 10 − 25 → 0
+
+    def test_bedrock_salinity_average(self):
+        # 암반 75 cm 차이 → 선형 50점, ec 같음 → 100점, 평균 75
+        self.assertAlmostEqual(self.score(bedrock_cm=125.0)["bedrock_salinity"], 75.0, places=9)
+        # 암반 같음 100점, ec 2.0 차이 → 50점, 평균 75
+        self.assertAlmostEqual(self.score(ec=2.5)["bedrock_salinity"], 75.0, places=9)
+
+    def test_slope_linear(self):
+        self.assertAlmostEqual(self.score(slope=7.0)["slope"], 50.0, places=9)
+        self.assertEqual(self.score(slope=14.0)["slope"], 0.0)
+
+    def test_monthly_weights(self):
+        # 1월만 2.8℃ 차이 → 1월 50점, 나머지 100점 → (1·50 + 17·100) / 18
+        self.assertAlmostEqual(self.score(t_m01=2.8)["temp_monthly"], (50 + 1700) / 18, places=9)
+        # 7월만 차이 → 가중치 2 → (2·50 + 16·100) / 18
+        self.assertAlmostEqual(self.score(t_m07=6.0 + 2.8)["temp_monthly"], (100 + 1600) / 18, places=9)
+        # 강수: 4월만 30 mm 차이
+        self.assertAlmostEqual(self.score(p_m04=53.0 + 30.0)["precip_monthly"], (100 + 1600) / 18, places=9)
+
+
+class Total(unittest.TestCase):
+    def test_only_slope_differs(self):
+        # 경사만 50점 → 종합 = 100 − 0.06·50 = 97, 토양 블록 = 100 − 0.06·50/0.55
+        s = F.score_pair(base(), with_(slope=7.0))
+        self.assertAlmostEqual(s["total"], 97.0, places=9)
+        self.assertAlmostEqual(s["soil"], 100 - 3 / 0.55, places=9)
+        self.assertAlmostEqual(s["climate"], 100.0, places=9)
+        self.assertAlmostEqual(s["items"]["slope"]["penalty"], 3.0, places=9)
+
+    def test_penalties_add_up(self):
+        s = F.score_pair(base(), with_(slope=7.0, ph=7.4, t_m05=6.0, drainage=4))
+        self.assertAlmostEqual(sum(i["penalty"] for i in s["items"].values()), 100 - s["total"], places=9)
+
+
+class Warnings(unittest.TestCase):
+    def warn(self, a, b):
+        return F.warnings(a, b)
+
+    def test_ph_exact_boundary(self):
+        # 수학적으로 정확히 1.0 차이 → 경고 없음 (7.3 vs 8.3은 부동소수점으로 1.0000000000000009)
+        self.assertEqual(self.warn(with_(ph=7.3), with_(ph=8.3)), [])
+        self.assertEqual(self.warn(with_(ph=7.3), with_(ph=8.4)), ["ph"])
+
+    def test_each_rule(self):
+        self.assertEqual(self.warn(base(), with_(drainage=5)), ["drainage"])
+        self.assertEqual(self.warn(base(), with_(drainage=4)), [])
+        self.assertEqual(self.warn(base(), with_(flood=2)), ["flood"])
+        self.assertEqual(self.warn(base(), with_(flood=1)), [])
+        self.assertEqual(self.warn(base(), with_(bedrock_cm=99.0)), ["bedrock"])
+        self.assertEqual(self.warn(with_(bedrock_cm=100.0), with_(bedrock_cm=200.0)), [])
+        self.assertEqual(self.warn(base(), with_(ec=4.0)), ["salinity"])
+        self.assertEqual(self.warn(base(), with_(ec=3.99)), [])
+
+
+class Status(unittest.TestCase):
+    def test_tau_wins_over_climate_only(self):
+        self.assertEqual(F.status_of(80.2, 64.0, 100.0, 0), "twin")
+        self.assertEqual(F.status_of(80.2, 64.0, 100.0, 1), "constrained")
+
+    def test_climate_only(self):
+        self.assertEqual(F.status_of(79.9, 64.9, 80.0, 0), "climate_only")
+        self.assertEqual(F.status_of(79.9, 65.0, 80.0, 0), "none")
+
+
+class Rotation(unittest.TestCase):
+    names = {"1": "Corn", "5": "Soybeans", "24": "Winter Wheat"}
+
+    def seq(self, codes, **kw):
+        r = with_(**kw)
+        for k, c in zip(F.CROP_KEYS, codes):
+            r[k] = c
+        return r
+
+    def test_pattern_key(self):
+        self.assertEqual(F.pattern_key(self.seq([1, 5] * 4), self.names), "Corn+Soybeans")
+        self.assertEqual(F.pattern_key(self.seq([1, 5, 1, 5, 1, 5, 1, 24]), self.names), "Corn+Soybeans")
+        self.assertEqual(F.pattern_key(self.seq([1, 5, 24, 99, 98, 97, 96, 95]), self.names), "")
+
+    def test_summary_counts(self):
+        ref = self.seq([1] * 8, chunk_id="R")
+        sim = [
+            (self.seq([1, 5] * 4, chunk_id="A", climate_cell="C1", acres=100), {"total": 95.0, "warnings": []}),
+            (self.seq([1, 5] * 4, chunk_id="B", climate_cell="C2", acres=300), {"total": 90.0, "warnings": ["ph"]}),
+            (self.seq([1] * 8, chunk_id="C", climate_cell="C1", acres=100), {"total": 85.0, "warnings": []}),
+        ]
+        s = F.summarize(ref, sim, self.names)
+        cur, top = s["cards"][0], s["cards"][1]
+        self.assertEqual((cur["key"], cur["count"], cur["total"]), ("Corn", 1, 3))
+        self.assertAlmostEqual(cur["area_share"], 0.2, places=12)
+        self.assertEqual((top["key"], top["count"], top["cell_count"], top["warned_count"]), ("Corn+Soybeans", 2, 2, 1))
+        self.assertAlmostEqual(top["area_share"], 0.8, places=12)
+
+    def test_cell_cap(self):
+        sim = [(with_(chunk_id=f"K{i:02d}", climate_cell="C1"), {"total": 100.0 - i, "warnings": []}) for i in range(15)]
+        kept = F.cell_cap(sim)
+        self.assertEqual([c["chunk_id"] for c, _ in kept], [f"K{i:02d}" for i in range(10)])
+
+
+class Select(unittest.TestCase):
+    def test_top_k_and_tau(self):
+        ref = with_(chunk_id="R")
+        others = [with_(chunk_id=f"N{i:02d}", slope=2.0 + i * 0.1) for i in range(40)]
+        r = F.find_similar(ref, [ref, *others], shifted=False)
+        self.assertEqual(len(r["selected"]), 30)
+        self.assertEqual(r["selected"][0][0]["chunk_id"], "N00")
+
+    def test_shift_gate(self):
+        # 시프트 +6℃: 월별 기온 점수 100·2^(-(6/2.8)²) ≈ 4.2 → 기후 블록 ≈ (0.10·4.2 + 0.35·100)/0.45 ≈ 78.7 < 85
+        ref = with_(chunk_id="R")
+        for k in F.TEMP_KEYS:
+            ref[f"s_{k}"] = ref[k] + 6.0
+        same = with_(chunk_id="SAME")
+        warm = with_(chunk_id="WARM", **{k: base()[k] + 6.0 for k in F.TEMP_KEYS})
+        r = F.find_similar(ref, [ref, same, warm], shifted=True)
+        ids = [c["chunk_id"] for c, _ in r["selected"]]
+        self.assertEqual(ids, ["WARM"])
+        self.assertEqual(r["gated_count"], 1)
+
+
+if __name__ == "__main__":
+    unittest.main()

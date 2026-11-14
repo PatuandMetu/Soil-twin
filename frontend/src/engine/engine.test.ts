@@ -8,11 +8,13 @@ import {
   compareCode,
   summarizeRotations,
   config,
+  distanceKm,
   drainageFloodScore,
   exact,
   findSimilar,
   gaussian,
   grade,
+  meetsMinDistance,
   meetsTau,
   passesShiftGate,
   patternKey,
@@ -71,6 +73,13 @@ function makeChunk(id: string, over: Partial<Chunk> = {}, cur: Climate = CURRENT
   CROP_KEYS.forEach((k, i) => (base[k] = i % 2 === 0 ? 1 : 5))
   return { ...(base as Chunk), ...over }
 }
+
+/**
+ * 기준 청크는 후보(makeChunk 기본 좌표 41°N, 93°W)에서 북쪽으로 2°(약 222 km) 떨어뜨린다.
+ * 같은 좌표면 후보 최소 거리(100 km) 조건에 걸려 후보가 하나도 남지 않는다.
+ */
+const REF_AT = { lat: 43, lon: -93 }
+const makeRef = (over: Partial<Chunk> = {}) => makeChunk('ref', { ...REF_AT, ...over })
 
 const withCrops = (codes: number[]) => Object.fromEntries(CROP_KEYS.map((k, i) => [k, codes[i]])) as Partial<Chunk>
 const CORN_SOY = withCrops([1, 5, 1, 5, 1, 5, 1, 5])
@@ -166,7 +175,7 @@ describe('배수·침수 등급 (실수로 저장 → 정수 등급으로 분류
   })
 
   it('실수 등급 청크가 고르기에서 조용히 사라지지 않는다', () => {
-    const ref = makeChunk('ref', { drainage: 3, flood: 0 })
+    const ref = makeRef({ drainage: 3, flood: 0 })
     const cand = makeChunk('cand', { drainage: 3.4, flood: 0.3 })
     const r = findSimilar(ref, [ref, cand], false)
     expect(Number.isNaN(r.candidates[0].score.total)).toBe(false)
@@ -243,7 +252,7 @@ describe('경계 비교 (소수 9자리 반올림)', () => {
     //            + 암반·염류 0.5(암반 Δ 75) = 17.5 → 토양 68.2
     // 기후 감점: 무상기간 2.5(Δ 28 = t) → 기후 94.4. 종합 = 100 − 17.5 − 2.5 = 80
     // 부동소수점 꼬리로 80 바로 밑이 되는 경우는 아래 meetsTau 테스트가 맡는다.
-    const ref = makeChunk('ref')
+    const ref = makeRef()
     const cand = makeChunk('cand', { sand: 52, silt: 28, aws_mm: 250, ph: 7.4, om: 5.2, bedrock_cm: 125, ffd: 188 })
     const r = findSimilar(ref, [ref, cand], false)
     const s = r.candidates[0].score
@@ -278,7 +287,7 @@ describe('경계 비교 (소수 9자리 반올림)', () => {
 describe('핵심 닮은 청크는 토양 점수 65 이상', () => {
   // 토양 감점: 토성 7.5 + 유효수분 5 + 산도 3 + 유기물 1.5 + CEC 1.5 + 경사 0.75(Δ 1.25) = 19.25
   // → 토양 정확히 65, 기후 100 → 종합 80.75
-  const ref = makeChunk('ref')
+  const ref = makeRef()
   const soil65 = { sand: 52, silt: 28, aws_mm: 250, ph: 7.4, om: 5.2, cec: 29 }
 
   it('종합 80.75·토양 정확히 65 → twin, 선택됨', () => {
@@ -310,7 +319,7 @@ describe('동점 정렬: 유니코드 문자 코드 순서', () => {
   })
 
   it("후보 동점 'a1'과 'B1' → 'B1'이 먼저", () => {
-    const ref = makeChunk('ref')
+    const ref = makeRef()
     const r = findSimilar(ref, [ref, makeChunk('a1'), makeChunk('B1')], false, NAMES)
     expect(r.similar.map((s) => s.chunk.chunk_id)).toEqual(['B1', 'a1'])
   })
@@ -318,7 +327,7 @@ describe('동점 정렬: 유니코드 문자 코드 순서', () => {
   it("패턴 'Corn'과 'barley' 동점(개수·면적 같음) → 'Corn'이 먼저", () => {
     const corn = makeChunk('c', withCrops([1, 1, 1, 1, 1, 1, 1, 1]))
     const barley = makeChunk('b', withCrops([21, 21, 21, 21, 21, 21, 21, 21]))
-    const sum = summarizeRotations(makeChunk('ref'), [scoredOf(barley), scoredOf(corn)], NAMES_LOWER)
+    const sum = summarizeRotations(makeRef(), [scoredOf(barley), scoredOf(corn)], NAMES_LOWER)
     expect(sum.patterns.map((p) => p.key)).toEqual(['Corn', 'barley'])
   })
 
@@ -362,8 +371,50 @@ describe('기후 칸 상한', () => {
   })
 })
 
-describe('고르기 순서: 빈 패턴 제외 → 닮은 청크 조건 → 기후 칸 상한 → 상위 K', () => {
-  const ref = makeChunk('ref', CORN_SOY)
+describe('후보 최소 거리 100 km (Haversine, 지구 반지름 6,371 km)', () => {
+  const R = config.earthRadiusKm
+  /** 기준 청크에서 정북으로 km만큼 떨어진 위도 */
+  const northBy = (km: number) => REF_AT.lat + (km / R) * (180 / Math.PI)
+
+  it('대원거리: 같은 점 0, 적도에서 경도 90° 차이는 R·π/2, 극에서 극은 R·π, 위도 1°는 R·π/180', () => {
+    expect(distanceKm({ lat: 41, lon: -93 }, { lat: 41, lon: -93 })).toBe(0)
+    expect(distanceKm({ lat: 0, lon: 0 }, { lat: 0, lon: 90 })).toBeCloseTo((R * Math.PI) / 2, 9)
+    expect(distanceKm({ lat: 90, lon: 0 }, { lat: -90, lon: 0 })).toBeCloseTo(R * Math.PI, 9)
+    expect(distanceKm({ lat: 41, lon: -93 }, { lat: 42, lon: -93 })).toBeCloseTo((R * Math.PI) / 180, 9)
+  })
+
+  it('경계는 반올림한 거리로 비교: 100 − 1e-12 km는 100 km로 본다', () => {
+    expect(meetsMinDistance(100)).toBe(true)
+    expect(meetsMinDistance(100 - 1e-12)).toBe(true)
+    expect(meetsMinDistance(100 - 1e-6)).toBe(false)
+  })
+
+  it('100 km 미만은 후보가 아니고, 정확히 100 km(반올림 비교)는 후보', () => {
+    const ref = makeRef()
+    const at100 = makeChunk('at100', { lat: northBy(100), lon: REF_AT.lon })
+    const at99 = makeChunk('at99', { lat: northBy(99.9), lon: REF_AT.lon })
+    const same = makeChunk('same', REF_AT)
+    expect(exact(distanceKm(ref, at100))).toBe(100)
+    const r = findSimilar(ref, [ref, at100, at99, same], false, NAMES)
+    expect(r.candidates.map((s) => s.chunk.chunk_id)).toEqual(['at100'])
+    expect(r.similar.map((s) => s.chunk.chunk_id)).toEqual(['at100'])
+  })
+
+  it('가까운 청크는 100점이어도 후보가 아니고, 기후 칸 상한 자리를 차지하지 않는다', () => {
+    const ref = makeRef()
+    // 같은 칸 A: 기준 청크와 같은 자리의 100점 청크 10개 + 222 km 떨어진 조금 덜 닮은 청크 10개
+    const near = Array.from({ length: 10 }, (_, i) => makeChunk(`N${i}`, REF_AT))
+    const far = Array.from({ length: 10 }, (_, i) => makeChunk(`F${i}`, { ph: 6.8 }))
+    expect(scorePair(profileOf(ref), profileOf(near[0])).total).toBeCloseTo(100, 9)
+    const r = findSimilar(ref, [ref, ...near, ...far], false, NAMES)
+    expect(r.candidates.some((s) => s.chunk.chunk_id.startsWith('N'))).toBe(false)
+    expect(r.similar).toHaveLength(10)
+    expect(r.similar.every((s) => s.chunk.chunk_id.startsWith('F'))).toBe(true)
+  })
+})
+
+describe('고르기 순서: 최소 거리·빈 패턴 제외 → 닮은 청크 조건 → 기후 칸 상한 → 상위 K', () => {
+  const ref = makeRef(CORN_SOY)
   const many = (cell: string, n: number) =>
     Array.from({ length: n }, (_, i) => makeChunk(`${cell}${String(i).padStart(2, '0')}`, { climate_cell: cell }))
 
@@ -412,7 +463,7 @@ describe('고르기 순서: 빈 패턴 제외 → 닮은 청크 조건 → 기�
 describe('윤작 집계', () => {
   it('받은 닮은 청크를 그대로 센다 (칸 상한·빈 패턴 제외를 다시 하지 않음)', () => {
     const similar = Array.from({ length: 12 }, (_, i) => scoredOf(makeChunk(`P${i}`, CORN_SOY)))
-    const sum = summarizeRotations(makeChunk('ref', CORN_SOY), similar, NAMES)
+    const sum = summarizeRotations(makeRef(CORN_SOY), similar, NAMES)
     expect(sum.counted).toHaveLength(12)
     expect(sum.current).toMatchObject({
       key: 'Corn+Soybeans',
@@ -426,14 +477,14 @@ describe('윤작 집계', () => {
   })
 
   it('기준 청크가 빈 패턴이면 현재 윤작 카드는 count 0', () => {
-    const sum = summarizeRotations(makeChunk('ref', EMPTY), [scoredOf(makeChunk('P0', CORN_SOY))], NAMES)
+    const sum = summarizeRotations(makeRef(EMPTY), [scoredOf(makeChunk('P0', CORN_SOY))], NAMES)
     expect(sum.current).toMatchObject({ key: '', count: 0, total: 1 })
     expect(sum.cards.map((c) => c.key)).toEqual(['', 'Corn+Soybeans'])
   })
 })
 
 describe('기후 시프트 모드', () => {
-  const ref = makeChunk('ref')
+  const ref = makeRef()
   // 현재 기후가 기준 청크와 같은 후보, 현재 기후가 기준 청크의 시프트 기후와 같은 후보
   const sameNow = makeChunk('same-now')
   const likeShift = makeChunk('like-shift', { climate_cell: 'B' }, SHIFTED, SHIFTED)

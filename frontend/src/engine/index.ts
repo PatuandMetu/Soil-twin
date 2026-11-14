@@ -1,6 +1,7 @@
 export * from './types'
 export * from './config'
 export * from './score'
+export * from './geo'
 export * from './select'
 export * from './rotation'
 export * from './order'

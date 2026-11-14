@@ -1,11 +1,12 @@
 import { config as defaultConfig, type Config } from './config'
+import { distanceKm, meetsMinDistance } from './geo'
 import { compareCode } from './order'
 import { patternKey } from './rotation'
 import { passesShiftGate, profileOf, scorePair } from './score'
 import type { Chunk, CropNames, Scored, Status } from './types'
 
 export type SimilarResult = {
-  /** 후보(기준 청크와 빈 패턴 청크를 뺀 전체)의 점수, 점수 높은 순 */
+  /** 후보(기준 청크, 기준 청크에서 최소 거리 미만인 청크, 빈 패턴 청크를 뺀 전체)의 점수, 점수 높은 순 */
   candidates: Scored[]
   /** 시프트 모드의 기후 게이트를 통과한 후보 수 (현재 모드면 후보 전체) */
   gatedCount: number
@@ -21,7 +22,8 @@ const isSimilarStatus = (s: Status) => s === 'twin' || s === 'constrained'
 
 /**
  * 닮은 청크 고르기.
- * 1) 후보: 기준 청크 자신과 빈 패턴 청크(8년 중 2번 이상 나온 작물이 없는 청크)는 뺀다
+ * 1) 후보: 기준 청크 자신, 기준 청크에서 대원거리 minDistanceKm(100 km) 미만인 청크,
+ *    빈 패턴 청크(8년 중 2번 이상 나온 작물이 없는 청크)는 뺀다
  * 2) 점수 높은 순으로 정렬
  * 3) 시프트 모드면 기후 게이트
  * 4) 닮은 청크 조건: 상태가 twin 또는 constrained
@@ -38,7 +40,12 @@ export function findSimilar(
 ): SimilarResult {
   const refProfile = profileOf(ref, shifted)
   const candidates = all
-    .filter((c) => c.chunk_id !== ref.chunk_id && patternKey(c, names, cfg.patternMinCount) !== '')
+    .filter(
+      (c) =>
+        c.chunk_id !== ref.chunk_id &&
+        meetsMinDistance(distanceKm(ref, c, cfg), cfg) &&
+        patternKey(c, names, cfg.patternMinCount) !== '',
+    )
     .map((chunk) => ({ chunk, score: scorePair(refProfile, profileOf(chunk), cfg) }))
     .sort(byScoreDesc)
 

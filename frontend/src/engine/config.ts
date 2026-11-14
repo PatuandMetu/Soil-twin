@@ -16,6 +16,10 @@ export const config = {
   comparePatterns: 2,
   /** 문턱·경계 비교는 소수 이 자리에서 반올림한 값으로 한다. 점수 자체는 반올림하지 않는다. */
   comparePrecision: 9,
+  /** 후보 최소 거리(km): 기준 청크에서 이보다 가까운 청크는 후보가 아니다 */
+  minDistanceKm: 100,
+  /** 대원거리(Haversine)에 쓰는 지구 반지름(km) */
+  earthRadiusKm: 6371,
 
   /** 핵심 닮은 청크(twin·constrained)의 토양 블록 하한. 미만이면 닮은 청크로 고르지 않는다. */
   soilMin: 65,

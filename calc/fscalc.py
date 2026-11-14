@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import sys
 from pathlib import Path
 
@@ -90,6 +91,11 @@ def _exact(x: float) -> float:
     return round(x, PRECISION)
 
 
+def grade(x: float) -> int:
+    """면적 가중 평균(실수)으로 저장된 배수·침수 등급을 정수 등급으로 분류한다. 반올림, 0.5는 올림."""
+    return math.floor(_exact(x) + 0.5)
+
+
 # ---------------------------------------------------------------------------
 # 항목 점수
 # ---------------------------------------------------------------------------
@@ -110,8 +116,8 @@ def item_scores(a: dict, b: dict) -> dict[str, float]:
     mw = P["month_weights"]
     d_tex = (abs(a["sand"] - b["sand"]) + abs(a["silt"] - b["silt"]) + abs(a["clay"] - b["clay"])) / 200.0
     table = P["drainage_by_diff"]
-    dr = table[min(int(abs(a["drainage"] - b["drainage"])), len(table) - 1)]
-    if a["flood"] != b["flood"]:
+    dr = table[min(abs(grade(a["drainage"]) - grade(b["drainage"])), len(table) - 1)]
+    if grade(a["flood"]) != grade(b["flood"]):
         dr -= P["flood_penalty"]
 
     def monthly(keys: list[str], tol: float) -> float:
@@ -139,11 +145,11 @@ def item_scores(a: dict, b: dict) -> dict[str, float]:
 def warnings(a: dict, b: dict) -> list[str]:
     g = P["gate"]
     out = []
-    if _exact(abs(a["drainage"] - b["drainage"])) >= g["drainage_diff"]:
+    if abs(grade(a["drainage"]) - grade(b["drainage"])) >= g["drainage_diff"]:
         out.append("drainage")
     if _exact(abs(a["ph"] - b["ph"])) > g["ph_diff"]:
         out.append("ph")
-    if _exact(abs(a["flood"] - b["flood"])) >= g["flood_diff"]:
+    if abs(grade(a["flood"]) - grade(b["flood"])) >= g["flood_diff"]:
         out.append("flood")
     if (_exact(a["bedrock_cm"]) < g["bedrock_cm"]) != (_exact(b["bedrock_cm"]) < g["bedrock_cm"]):
         out.append("bedrock")

@@ -109,6 +109,28 @@ class Items(unittest.TestCase):
         self.assertAlmostEqual(self.score(p_m04=53.0 + 30.0)["precip_monthly"], (100 + 1600) / 18, places=9)
 
 
+class Grades(unittest.TestCase):
+    """배수·침수 등급은 실수로 저장하고 반올림(0.5는 올림)해서 정수 등급으로 쓴다."""
+
+    def test_grade_rounding(self):
+        self.assertEqual([F.grade(x) for x in (4.5, 4.49, 4.0, 1.5, 0.49, 5.5)], [5, 4, 4, 2, 0, 6])
+
+    def test_drainage_uses_grade(self):
+        s = F.item_scores
+        self.assertEqual(s(base(), with_(drainage=3.49))["drainage_flood"], 100.0)  # 3 → 3
+        self.assertEqual(s(base(), with_(drainage=3.5))["drainage_flood"], 75.0)  # 3 → 4
+        self.assertEqual(s(base(), with_(drainage=4.5))["drainage_flood"], 35.0)  # 3 → 5
+
+    def test_flood_uses_grade(self):
+        self.assertEqual(F.item_scores(base(), with_(flood=0.4))["drainage_flood"], 100.0)  # 0 → 0, 감점 없음
+        self.assertEqual(F.item_scores(base(), with_(flood=0.5))["drainage_flood"], 75.0)  # 0 → 1, 100 − 25
+
+    def test_warnings_use_grade(self):
+        self.assertEqual(F.warnings(base(), with_(drainage=4.49)), [])  # 3 vs 4
+        self.assertEqual(F.warnings(base(), with_(drainage=4.5)), ["drainage"])  # 3 vs 5
+        self.assertEqual(F.warnings(base(), with_(flood=1.5)), ["flood"])  # 0 vs 2
+
+
 class Total(unittest.TestCase):
     def test_only_slope_differs(self):
         # 경사만 50점 → 종합 = 100 − 0.06·50 = 97, 토양 블록 = 100 − 0.06·50/0.55

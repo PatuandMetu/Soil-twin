@@ -274,10 +274,113 @@ def summarize(ref: dict, similar: list, names: dict) -> dict:
 # ---------------------------------------------------------------------------
 
 
+# ---------------------------------------------------------------------------
+# 테이블 값 검사 (문서 "테이블 값 검사")
+# ---------------------------------------------------------------------------
+
+MISSING = -999  # NASA POWER 결측값
+
+# 열 → (최솟값, 최댓값, 최솟값 포함 여부). None은 그쪽 제한 없음.
+RANGES: dict[str, tuple] = {
+    "lat": (-90, 90, True),
+    "lon": (-180, 180, True),
+    "acres": (0, None, True),
+    "sand": (0, 100, True),
+    "silt": (0, 100, True),
+    "clay": (0, 100, True),
+    "aws_mm": (0, None, True),
+    "drainage": (1, 7, True),
+    "flood": (0, 5, True),
+    "ph": (3, 11, True),
+    "om": (0, None, True),
+    "cec": (0, None, True),
+    "ec": (0, None, True),
+    "slope": (0, None, True),
+    "bedrock_cm": (0, 200, False),
+}
+for _pre in ("", "s_"):
+    for _k in PRECIP_KEYS:
+        RANGES[_pre + _k] = (0, None, True)
+    RANGES[_pre + "ffd"] = (0, 366, True)
+    RANGES[_pre + "heat_days"] = (0, 366, True)
+    RANGES[_pre + "gwet_summer"] = (0, 1, True)
+    RANGES[_pre + "drought_freq"] = (0, 1, True)
+
+TEXT_FIELDS = ["chunk_id", "state", "climate_cell"]
+SOIL_FIELDS = ["sand", "silt", "clay", "aws_mm", "drainage", "flood", "ph", "om", "cec", "ec", "slope", "bedrock_cm"]
+NUMBER_FIELDS = ["lat", "lon", "acres", *SOIL_FIELDS, *CLIMATE_KEYS, *[f"s_{k}" for k in CLIMATE_KEYS]]
+TEXTURE_TOLERANCE = 0.5
+
+
+class InvalidTable(ValueError):
+    def __init__(self, errors: list[str]):
+        super().__init__(f"테이블 값 오류 {len(errors)}건")
+        self.errors = errors
+
+
+def _is_number(v) -> bool:
+    return isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v)
+
+
+def validate(chunks, names) -> list[str]:
+    """테이블과 작물 이름표를 검사해 오류 목록을 돌려준다. 비어 있으면 통과."""
+    errs: list[str] = []
+    if names is None:
+        errs.append("crops.json: 파일이 없음")
+    if not isinstance(chunks, list):
+        return errs + ["테이블: 행 배열이 아님"]
+    seen: dict[str, int] = {}
+    for i, row in enumerate(chunks):
+        if not isinstance(row, dict):
+            errs.append(f"#{i}: 행이 객체가 아님")
+            continue
+        cid = row.get("chunk_id")
+        who = cid if isinstance(cid, str) and cid else f"#{i}"
+        for k in TEXT_FIELDS:
+            v = row.get(k)
+            if not isinstance(v, str) or not v:
+                errs.append(f"{who}: {k}={v!r} 빈 값이거나 문자열이 아님")
+        for k in NUMBER_FIELDS:
+            if k not in row:
+                errs.append(f"{who}: {k} 열이 없음")
+                continue
+            v = row[k]
+            if not _is_number(v):
+                errs.append(f"{who}: {k}={v!r} 유한한 숫자가 아님")
+                continue
+            if v == MISSING:
+                errs.append(f"{who}: {k}={v} 결측값(-999)")
+                continue
+            if k in RANGES:
+                lo, hi, lo_inclusive = RANGES[k]
+                if lo is not None and (v < lo if lo_inclusive else v <= lo):
+                    errs.append(f"{who}: {k}={v} 범위 밖({'≥' if lo_inclusive else '>'} {lo})")
+                if hi is not None and v > hi:
+                    errs.append(f"{who}: {k}={v} 범위 밖(≤ {hi})")
+        for k in CROP_KEYS:
+            v = row.get(k)
+            if isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v) or v != int(v):
+                errs.append(f"{who}: {k}={v!r} 작물 코드가 정수가 아님")
+        if all(_is_number(row.get(k)) for k in ("sand", "silt", "clay")):
+            total = row["sand"] + row["silt"] + row["clay"]
+            if abs(total - 100) > TEXTURE_TOLERANCE:
+                errs.append(f"{who}: sand+silt+clay={_exact(total)} 100 ± {TEXTURE_TOLERANCE}이 아님")
+        if isinstance(cid, str) and cid:
+            if cid in seen:
+                errs.append(f"{who}: chunk_id 중복 (#{seen[cid]}, #{i})")
+            else:
+                seen[cid] = i
+    return errs
+
+
 def load(data: Path) -> tuple[list[dict], dict]:
+    """테이블과 같은 폴더의 crops.json을 읽고 검사한다. 오류가 있으면 InvalidTable."""
     chunks = json.loads(data.read_text(encoding="utf-8"))
     crops_path = data.with_name("crops.json")
-    names = json.loads(crops_path.read_text(encoding="utf-8")) if crops_path.exists() else {}
+    names = json.loads(crops_path.read_text(encoding="utf-8")) if crops_path.exists() else None
+    errs = validate(chunks, names)
+    if errs:
+        raise InvalidTable(errs)
     return chunks, names
 
 
@@ -322,7 +425,15 @@ def main(argv: list[str] | None = None) -> None:
     p3.add_argument("data", type=Path)
     args = ap.parse_args(argv)
 
-    chunks, names = load(args.data)
+    try:
+        chunks, names = load(args.data)
+    except InvalidTable as e:
+        print(f"{args.data}: {e}", file=sys.stderr)
+        for line in e.errors[:50]:
+            print(f"  {line}", file=sys.stderr)
+        if len(e.errors) > 50:
+            print(f"  … 외 {len(e.errors) - 50}건", file=sys.stderr)
+        sys.exit(2)
     if args.cmd == "pair":
         a, b = by_id(chunks, args.a), by_id(chunks, args.b)
         s = score_pair(profile(a, args.shift), profile(b))

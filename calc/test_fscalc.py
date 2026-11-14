@@ -4,7 +4,11 @@
 r = 0.5 → 100·2^(-1/4) ≈ 84.0896, r = 1 → 50, r = 2 → 6.25 처럼 손으로 확인할 수 있다.
 """
 
+import json
+import math
+import tempfile
 import unittest
+from pathlib import Path
 
 import fscalc as F
 
@@ -50,6 +54,92 @@ def with_(**kw) -> dict:
     r = base()
     r.update(kw)
     return r
+
+
+def full_row(**kw) -> dict:
+    """검사를 통과하는 완전한 행."""
+    r = base()
+    r.update(lat=42.0, lon=-93.5, state="IA")
+    r.update(kw)
+    return r
+
+
+FAKE = Path(__file__).resolve().parent.parent / "frontend" / "public" / "data" / "chunks.fake.json"
+
+
+class Validation(unittest.TestCase):
+    """틀린 값을 실제로 넣어 보고, 어느 행의 어느 열이 틀렸는지 잡는지 본다."""
+
+    def errs(self, *rows, names=None):
+        return F.validate(list(rows), {"1": "Corn"} if names is None else names)
+
+    def assertCaught(self, field, **bad):
+        errs = self.errs(full_row(**bad))
+        self.assertTrue(any(f" {field}" in e for e in errs), f"{field} 오류를 못 잡음: {errs}")
+
+    def test_good_row_passes(self):
+        self.assertEqual(self.errs(full_row()), [])
+
+    def test_fake_table_passes(self):
+        chunks, _ = F.load(FAKE)
+        self.assertEqual(len(chunks), 60)
+
+    def test_missing_and_non_numbers(self):
+        r = full_row()
+        del r["ph"]
+        self.assertTrue(any("ph 열이 없음" in e for e in self.errs(r)))
+        self.assertCaught("om", om=None)
+        self.assertCaught("cec", cec="18")
+        self.assertCaught("slope", slope=math.nan)
+        self.assertCaught("aws_mm", aws_mm=math.inf)
+        self.assertCaught("sand", sand=True)
+
+    def test_power_missing_value(self):
+        self.assertCaught("t_m07", t_m07=-999)
+        self.assertCaught("s_gdd10", s_gdd10=-999.0)
+
+    def test_ranges(self):
+        for field, value in [
+            ("drainage", 0.4), ("drainage", 7.6), ("flood", -1), ("flood", 5.5), ("ph", 2.9), ("ph", 11.5),
+            ("bedrock_cm", 0), ("bedrock_cm", 250), ("om", -0.1), ("ec", -1), ("gwet_summer", 1.2),
+            ("drought_freq", -0.1), ("ffd", 400), ("heat_days", -3), ("p_m05", -1), ("s_p_m05", -1), ("acres", -5),
+        ]:
+            with self.subTest(field=field, value=value):
+                self.assertCaught(field, **{field: value})
+
+    def test_range_edges_pass(self):
+        self.assertEqual(self.errs(full_row(drainage=1, flood=0, bedrock_cm=200, ph=3, gwet_summer=1)), [])
+        self.assertEqual(self.errs(full_row(drainage=7, flood=5, bedrock_cm=0.1, ph=11, drought_freq=0)), [])
+
+    def test_texture_sum(self):
+        self.assertCaught("sand+silt+clay", sand=40.0, silt=40.0, clay=19.4)  # 99.4
+        self.assertEqual(self.errs(full_row(sand=40.0, silt=40.0, clay=19.5)), [])  # 99.5 → 허용
+
+    def test_crop_codes(self):
+        self.assertCaught("crop_2020", crop_2020=1.5)
+        self.assertCaught("crop_2021", crop_2021=None)
+        self.assertCaught("crop_2022", crop_2022="1")
+
+    def test_text_fields(self):
+        self.assertCaught("climate_cell", climate_cell="")
+        errs = self.errs(full_row(chunk_id=None))
+        self.assertTrue(any(e.startswith("#0: chunk_id") for e in errs), errs)
+
+    def test_duplicate_ids(self):
+        errs = self.errs(full_row(chunk_id="A"), full_row(chunk_id="A"))
+        self.assertTrue(any("chunk_id 중복" in e for e in errs), errs)
+
+    def test_crops_file_missing(self):
+        with tempfile.TemporaryDirectory() as d:
+            data = Path(d) / "chunks.json"
+            data.write_text(json.dumps([full_row()]), encoding="utf-8")
+            with self.assertRaises(F.InvalidTable) as cm:
+                F.load(data)
+            self.assertIn("crops.json: 파일이 없음", cm.exception.errors)
+
+    def test_every_error_is_reported(self):
+        errs = self.errs(full_row(chunk_id="A", ph=20, om=None), full_row(chunk_id="B", drainage=9))
+        self.assertEqual(len(errs), 3)
 
 
 class Basics(unittest.TestCase):

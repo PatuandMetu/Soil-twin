@@ -407,25 +407,28 @@ class Rotation(unittest.TestCase):
         self.assertEqual((top["key"], top["count"], top["cell_count"], top["warned_count"]), ("Corn+Soybeans", 2, 2, 1))
         self.assertAlmostEqual(top["area_share"], 0.8, places=12)
 
-    def test_empty_pattern_is_excluded(self):
+    MIXED = [1, 5, 24, 99, 98, 97, 96, 95]  # 2번 이상 나온 작물 없음
+
+    def test_empty_pattern_chunk_is_not_a_candidate(self):
         ref = self.seq([1, 5] * 4, chunk_id="R")
-        mixed = [1, 5, 24, 99, 98, 97, 96, 95]  # 2번 이상 나온 작물 없음
-        sim = [
-            (self.seq([1, 5] * 4, chunk_id="A", climate_cell="C1", acres=100), {"total": 95.0, "warnings": []}),
-            (self.seq(mixed, chunk_id="B", climate_cell="C1", acres=900), {"total": 99.0, "warnings": []}),
-        ]
-        s = F.summarize(ref, sim, self.names)
-        self.assertEqual(s["counted"], ["A"])
-        self.assertEqual([c["key"] for c in s["cards"]], ["Corn+Soybeans"])
-        self.assertEqual((s["cards"][0]["count"], s["cards"][0]["total"]), (1, 1))
-        self.assertAlmostEqual(s["cards"][0]["area_share"], 1.0, places=12)
+        a = self.seq([1, 5] * 4, chunk_id="A", slope=3.0)
+        b = self.seq(self.MIXED, chunk_id="B")  # 기준 청크와 토양·기후가 같아 100점이지만 빈 패턴
+        r = F.find_similar(ref, [ref, a, b], shifted=False, names=self.names)
+        self.assertEqual([c["chunk_id"] for c, _ in r["selected"]], ["A"])
+        cards = F.summarize(ref, r["similar"], self.names)["cards"]
+        self.assertEqual((cards[0]["key"], cards[0]["count"], cards[0]["total"]), ("Corn+Soybeans", 1, 1))
 
     def test_empty_pattern_does_not_use_cell_cap_slot(self):
-        mixed = [1, 5, 24, 99, 98, 97, 96, 95]
-        sim = [(self.seq(mixed, chunk_id=f"M{i:02d}", climate_cell="C1"), {"total": 99.0 - i, "warnings": []}) for i in range(10)]
-        sim.append((self.seq([1, 5] * 4, chunk_id="P", climate_cell="C1"), {"total": 80.0, "warnings": []}))
-        s = F.summarize(self.seq([1] * 8, chunk_id="R"), sim, self.names)
-        self.assertEqual(s["counted"], ["P"])
+        ref = self.seq([1] * 8, chunk_id="R")
+        empties = [self.seq(self.MIXED, chunk_id=f"M{i:02d}", climate_cell="C1") for i in range(10)]
+        p = self.seq([1, 5] * 4, chunk_id="P", climate_cell="C1", slope=4.0)
+        r = F.find_similar(ref, [ref, *empties, p], shifted=False, names=self.names)
+        self.assertEqual(F.summarize(ref, r["similar"], self.names)["counted"], ["P"])
+
+    def test_only_empty_patterns_means_none_found(self):
+        ref = self.seq([1, 5] * 4, chunk_id="R")
+        r = F.find_similar(ref, [ref, self.seq(self.MIXED, chunk_id="B")], shifted=False, names=self.names)
+        self.assertTrue(r["none_found"])
 
     def test_reference_with_empty_pattern(self):
         ref = self.seq([1, 5, 24, 99, 98, 97, 96, 95], chunk_id="R")

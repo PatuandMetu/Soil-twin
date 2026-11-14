@@ -199,9 +199,15 @@ def profile(chunk: dict, shifted: bool = False) -> dict:
 # ---------------------------------------------------------------------------
 
 
-def find_similar(ref: dict, chunks: list[dict], shifted: bool) -> dict:
+def find_similar(ref: dict, chunks: list[dict], shifted: bool, names: dict | None = None) -> dict:
+    names = names or {}
     rp = profile(ref, shifted)
-    cands = [(c, score_pair(rp, profile(c))) for c in chunks if c["chunk_id"] != ref["chunk_id"]]
+    # 기준 청크 자신과, 2번 이상 나온 작물이 없는 청크(빈 패턴)는 후보가 아니다.
+    cands = [
+        (c, score_pair(rp, profile(c)))
+        for c in chunks
+        if c["chunk_id"] != ref["chunk_id"] and pattern_key(c, names) != ""
+    ]
     cands.sort(key=lambda x: (-x[1]["total"], x[0]["chunk_id"]))
     gated = [x for x in cands if _exact(x[1]["climate"]) >= P["shift_climate_gate"]] if shifted else cands
     above = [x for x in gated if _exact(x[1]["total"]) >= P["tau"]]
@@ -240,9 +246,7 @@ def cell_cap(similar: list) -> list:
 
 
 def summarize(ref: dict, similar: list, names: dict) -> dict:
-    # 2번 이상 나온 작물이 없는 청크(빈 패턴)는 분자·분모·칸 상한 어디에도 넣지 않는다.
-    with_pattern = [x for x in similar if pattern_key(x[0], names) != ""]
-    counted = cell_cap(with_pattern)
+    counted = cell_cap(similar)
     total = len(counted)
     total_acres = sum(c["acres"] for c, _ in counted)
     groups: dict[str, list] = {}
@@ -385,7 +389,7 @@ def load(data: Path) -> tuple[list[dict], dict]:
 
 
 def run_ref(ref: dict, chunks: list[dict], names: dict, shifted: bool) -> dict:
-    r = find_similar(ref, chunks, shifted)
+    r = find_similar(ref, chunks, shifted, names)
     summ = summarize(ref, r["similar"], names)
     return {
         "ref": ref["chunk_id"],

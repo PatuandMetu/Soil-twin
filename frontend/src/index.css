@@ -70,3 +70,11 @@ tr.row:hover {
   font-weight: 600;
   color: #b00;
 }
+/* 지도 툴팁: 클릭이 툴팁에 막히지 않게 통과시킨다 */
+.chunk-tip {
+  pointer-events: none;
+}
+.chunk-tip .maplibregl-popup-content {
+  padding: 4px 8px;
+  font-size: 12px;
+}

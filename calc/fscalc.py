@@ -211,7 +211,8 @@ def find_similar(ref: dict, chunks: list[dict], shifted: bool, names: dict | Non
     cands.sort(key=lambda x: (-x[1]["total"], x[0]["chunk_id"]))
     gated = [x for x in cands if _exact(x[1]["climate"]) >= P["shift_climate_gate"]] if shifted else cands
     above = [x for x in gated if _exact(x[1]["total"]) >= P["tau"]]
-    selected = above[: P["top_k"]]
+    # 기후 칸마다 상한을 먼저 적용하고, 그다음 상위 K개를 자른다. 목록과 윤작 카드가 같은 청크를 쓴다.
+    selected = cell_cap(above)[: P["top_k"]]
     similar = [x for x in selected if x[1]["status"] in ("twin", "constrained")]
     return {"gated_count": len(gated), "selected": selected, "similar": similar, "none_found": len(above) == 0}
 
@@ -246,7 +247,8 @@ def cell_cap(similar: list) -> list:
 
 
 def summarize(ref: dict, similar: list, names: dict) -> dict:
-    counted = cell_cap(similar)
+    # 칸 상한은 고를 때 이미 적용했다. 고른 닮은 청크를 그대로 센다.
+    counted = list(similar)
     total = len(counted)
     total_acres = sum(c["acres"] for c, _ in counted)
     groups: dict[str, list] = {}

@@ -281,6 +281,26 @@ class Rules(unittest.TestCase):
         self.assertEqual(kept[:3], ["B00", "B01", "B02"])
         self.assertEqual(sorted(k for k in kept if k.startswith("A")), [f"A{i:02d}" for i in range(10)])
 
+    def test_cell_cap_applies_before_top_k(self):
+        # C1에 고득점 25개, C2에 80점 이상 15개. 예전 순서(상위 30 → 칸 상한)면 목록 30개, 카드 분모 15개였다.
+        # 칸 상한 10을 먼저 적용하면 C1 10개 + C2 10개 = 20개이고, 목록과 카드 분모가 같다.
+        ref = with_(chunk_id="R")
+        c1 = [with_(chunk_id=f"A{i:02d}", climate_cell="C1", slope=2.0 + 0.01 * i) for i in range(25)]
+        c2 = [with_(chunk_id=f"B{i:02d}", climate_cell="C2", slope=4.0 + 0.01 * i) for i in range(15)]
+        r = F.find_similar(ref, [ref, *c1, *c2], shifted=False)
+        ids = [c["chunk_id"] for c, _ in r["selected"]]
+        self.assertEqual(len(ids), 20)
+        self.assertEqual(sum(1 for i in ids if i.startswith("A")), 10)
+        self.assertEqual(sum(1 for i in ids if i.startswith("B")), 10)
+        summ = F.summarize(ref, r["similar"], {})
+        self.assertEqual(summ["cards"][0]["total"], len(ids))  # 목록 수 = 카드 분모
+
+    def test_top_k_cut_after_cell_cap(self):
+        ref = with_(chunk_id="R")
+        cells = [with_(chunk_id=f"{c}{i}", climate_cell=c, slope=2.0 + 0.1 * i) for c in "PQRS" for i in range(10)]
+        r = F.find_similar(ref, [ref, *cells], shifted=False)
+        self.assertEqual(len(r["selected"]), F.P["top_k"])
+
     def test_patterns_tie_on_count_broken_by_area(self):
         names = {"1": "Corn", "5": "Soybeans", "24": "Winter Wheat", "61": "Fallow/Idle Cropland"}
 
@@ -445,7 +465,8 @@ class Rotation(unittest.TestCase):
 class Select(unittest.TestCase):
     def test_top_k_and_tau(self):
         ref = with_(chunk_id="R")
-        others = [with_(chunk_id=f"N{i:02d}", slope=2.0 + i * 0.1) for i in range(40)]
+        # 칸 상한(10)에 걸리지 않게 기후 칸 4개에 10개씩 나눈다.
+        others = [with_(chunk_id=f"N{i:02d}", climate_cell=f"K{i % 4}", slope=2.0 + i * 0.1) for i in range(40)]
         r = F.find_similar(ref, [ref, *others], shifted=False)
         self.assertEqual(len(r["selected"]), 30)
         self.assertEqual(r["selected"][0][0]["chunk_id"], "N00")

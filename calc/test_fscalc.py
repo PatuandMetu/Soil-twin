@@ -356,8 +356,10 @@ class Boundary(unittest.TestCase):
     """문턱은 "이상(≥)"이고, 비교는 소수 9자리 반올림 뒤에 한다 (문서 "경계 비교")."""
 
     def exact80(self, **extra):
-        # 감점: 배수 2단계+침수 다름 → 10점(감점 9), 유효수분 r=1(5), 경사 5(3), 유기물 r=1(1.5), CEC r=1(1.5) → 합 20
-        kw = dict(chunk_id="E", drainage=5, flood=1, aws_mm=230.0, slope=7.0, om=5.2, cec=27.0)
+        # 토양 감점: 배수 2단계+침수 다름 → 10점(감점 9), 경사 5(3), 유기물 r=1(1.5), CEC r=1(1.5) → 15, 토양 점수 72.7
+        # 기후 감점: 12달 모두 기온 2.8℃ 차이 → 월별 기온 50점(감점 5) → 합 20, 종합 정확히 80
+        kw = dict(chunk_id="E", drainage=5, flood=1, slope=7.0, om=5.2, cec=27.0)
+        kw.update({k: base()[k] + 2.8 for k in F.TEMP_KEYS})
         kw.update(extra)
         return with_(**kw)
 
@@ -371,6 +373,30 @@ class Boundary(unittest.TestCase):
 
     def test_just_below_tau_is_not_selected(self):
         ref, cand = with_(chunk_id="R"), self.exact80(slope=7.01)
+        r = F.find_similar(ref, [ref, cand], shifted=False)
+        self.assertEqual(r["selected"], [])
+        self.assertTrue(r["none_found"])
+
+    def soil65(self, **extra):
+        # 토양 감점 19.25 → 토양 정확히 65: 배수 2단계+침수(9), 유효수분 r=1(5), 경사 5(3), 유기물 r=1(1.5),
+        # 암반 112.5 cm 차이 → 선형 25, ec 같음 100 → 평균 62.5(0.75). 기후 같음 → 종합 80.75
+        kw = dict(chunk_id="S", drainage=5, flood=1, aws_mm=230.0, slope=7.0, om=5.2, bedrock_cm=87.5)
+        kw.update(extra)
+        return with_(**kw)
+
+    def test_soil_exactly_min_is_selected(self):
+        ref, cand = with_(chunk_id="R"), self.soil65()
+        s = F.score_pair(ref, cand)
+        self.assertAlmostEqual(s["soil"], 65.0, places=9)
+        self.assertEqual(s["status"], "constrained")
+        r = F.find_similar(ref, [ref, cand], shifted=False)
+        self.assertEqual([c["chunk_id"] for c, _ in r["selected"]], ["S"])
+
+    def test_soil_below_min_is_not_selected_even_above_tau(self):
+        ref, cand = with_(chunk_id="R"), self.soil65(slope=7.01)
+        s = F.score_pair(ref, cand)
+        self.assertGreaterEqual(s["total"], F.P["tau"])
+        self.assertEqual(s["status"], "climate_only")
         r = F.find_similar(ref, [ref, cand], shifted=False)
         self.assertEqual(r["selected"], [])
         self.assertTrue(r["none_found"])
@@ -390,9 +416,13 @@ class Boundary(unittest.TestCase):
 
 
 class Status(unittest.TestCase):
-    def test_tau_wins_over_climate_only(self):
-        self.assertEqual(F.status_of(80.2, 64.0, 100.0, 0), "twin")
-        self.assertEqual(F.status_of(80.2, 64.0, 100.0, 1), "constrained")
+    def test_twin_needs_soil_min(self):
+        # 종합이 τ 이상이어도 토양이 65 미만이면 핵심 닮은 청크가 아니다.
+        self.assertEqual(F.status_of(80.2, 64.0, 100.0, 0), "climate_only")
+        self.assertEqual(F.status_of(80.2, 65.0, 100.0, 0), "twin")
+        self.assertEqual(F.status_of(80.2, 65.0, 100.0, 1), "constrained")
+        self.assertEqual(F.status_of(80.2, 64.0, 95.0, 0), "climate_only")
+        self.assertEqual(F.status_of(80.2, 64.0, 79.0, 0), "none")
 
     def test_climate_only(self):
         self.assertEqual(F.status_of(79.9, 64.9, 80.0, 0), "climate_only")

@@ -34,7 +34,9 @@ P = {
     "cell_cap": 10,
     "pattern_min_count": 2,
     "compare_patterns": 2,
-    "climate_only": {"climate_min": 80.0, "soil_max": 65.0},
+    # 핵심 닮은 청크는 토양 점수도 이 값 이상이어야 한다. 미만이면서 기후가 climate_only_min 이상이면 "기후만 닮음".
+    "soil_min": 65.0,
+    "climate_only_min": 80.0,
     "t": {
         "texture": 0.22,
         "aws_mm": 50.0,
@@ -159,10 +161,9 @@ def warnings(a: dict, b: dict) -> list[str]:
 
 
 def status_of(total: float, soil: float, climate: float, n_warn: int) -> str:
-    if _exact(total) >= P["tau"]:
+    if _exact(total) >= P["tau"] and _exact(soil) >= P["soil_min"]:
         return "twin" if n_warn == 0 else "constrained"
-    co = P["climate_only"]
-    if _exact(climate) >= co["climate_min"] and _exact(soil) < co["soil_max"]:
+    if _exact(climate) >= P["climate_only_min"] and _exact(soil) < P["soil_min"]:
         return "climate_only"
     return "none"
 
@@ -210,7 +211,8 @@ def find_similar(ref: dict, chunks: list[dict], shifted: bool, names: dict | Non
     ]
     cands.sort(key=lambda x: (-x[1]["total"], x[0]["chunk_id"]))
     gated = [x for x in cands if _exact(x[1]["climate"]) >= P["shift_climate_gate"]] if shifted else cands
-    above = [x for x in gated if _exact(x[1]["total"]) >= P["tau"]]
+    # 닮은 청크 = 종합 ≥ τ 이고 토양 ≥ soil_min (상태가 twin 또는 constrained)
+    above = [x for x in gated if x[1]["status"] in ("twin", "constrained")]
     # 기후 칸마다 상한을 먼저 적용하고, 그다음 상위 K개를 자른다. 목록과 윤작 카드가 같은 청크를 쓴다.
     selected = cell_cap(above)[: P["top_k"]]
     similar = [x for x in selected if x[1]["status"] in ("twin", "constrained")]

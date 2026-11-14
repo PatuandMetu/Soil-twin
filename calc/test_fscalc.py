@@ -221,6 +221,83 @@ class Grades(unittest.TestCase):
         self.assertEqual(F.warnings(base(), with_(flood=1.5)), ["flood"])  # 0 vs 2
 
 
+class Rules(unittest.TestCase):
+    """문서의 규칙이 바뀌면 실패해야 하는 테스트. 값(허용 차이 등)은 P에서 읽고, 연결과 구조를 본다."""
+
+    def test_each_gaussian_item_uses_its_own_tolerance(self):
+        # 각 항목에 그 항목의 허용 차이만큼 차이를 주면 50점. 다른 항목의 허용 차이를 잘못 쓰면 실패한다.
+        cases = {"aws": "aws_mm", "ph": "ph", "om": "om", "cec": "cec", "ffd": "ffd", "gdd10": "gdd10",
+                 "gwet_summer": "gwet_summer", "heat_days": "heat_days", "drought_freq": "drought_freq"}
+        for item, field in cases.items():
+            with self.subTest(item=item):
+                t = F.P["t"][field]
+                s = F.item_scores(base(), with_(**{field: base()[field] + t}))
+                self.assertAlmostEqual(s[item], 50.0, places=9)
+                self.assertEqual([k for k, v in s.items() if abs(v - 100.0) > 1e-9], [item])
+
+    def test_ec_and_texture_use_their_tolerance(self):
+        t = F.P["t"]
+        self.assertAlmostEqual(F.item_scores(base(), with_(ec=0.5 + t["ec"]))["bedrock_salinity"], 75.0, places=9)
+        d = t["texture"] * 200 / 2  # 모래 +d, 점토 −d → 거리 = t
+        self.assertAlmostEqual(F.item_scores(base(), with_(sand=40.0 + d, clay=20.0 - d))["texture"], 50.0, places=9)
+
+    def test_month_weights_follow_growing_season(self):
+        # 문서: 4~9월은 2배. 달마다 하나씩만 차이를 줘서 그 달의 가중치를 확인한다.
+        t = F.P["t"]["t_month"]
+        for i, key in enumerate(F.TEMP_KEYS):
+            w = 2 if 3 <= i <= 8 else 1
+            with self.subTest(month=i + 1):
+                got = F.item_scores(base(), with_(**{key: base()[key] + t}))["temp_monthly"]
+                self.assertAlmostEqual(got, (w * 50 + (18 - w) * 100) / 18, places=9)
+        tp = F.P["t"]["p_month"]
+        for i, key in enumerate(F.PRECIP_KEYS):
+            w = 2 if 3 <= i <= 8 else 1
+            with self.subTest(precip_month=i + 1):
+                got = F.item_scores(base(), with_(**{key: base()[key] + tp}))["precip_monthly"]
+                self.assertAlmostEqual(got, (w * 50 + (18 - w) * 100) / 18, places=9)
+
+    def test_reference_is_never_a_candidate(self):
+        # 기준 청크와 똑같은 다른 청크가 없을 때도 기준 청크 자신은 후보가 아니다.
+        ref = with_(chunk_id="R")
+        others = [with_(chunk_id=f"N{i}", slope=3.0 + i) for i in range(3)]
+        r = F.find_similar(ref, [ref, *others], shifted=False)
+        ids = [c["chunk_id"] for c, _ in r["selected"]]
+        self.assertNotIn("R", ids)
+        self.assertEqual(ids, ["N0", "N1", "N2"])
+
+    def test_below_tau_is_filtered_even_when_fewer_than_k(self):
+        ref = with_(chunk_id="R")
+        hi = with_(chunk_id="HI", slope=4.0)  # 97.6
+        lo = with_(chunk_id="LO", drainage=6, flood=1, slope=12.0, aws_mm=280.0)  # 80 미만
+        r = F.find_similar(ref, [ref, hi, lo], shifted=False)
+        self.assertLess(F.score_pair(ref, lo)["total"], F.P["tau"])
+        self.assertEqual([c["chunk_id"] for c, _ in r["selected"]], ["HI"])
+
+    def test_cell_cap_with_unsorted_input_and_two_cells(self):
+        sim = [(with_(chunk_id=f"A{i:02d}", climate_cell="C1"), {"total": 90.0 - i, "warnings": []}) for i in range(12)]
+        sim += [(with_(chunk_id=f"B{i:02d}", climate_cell="C2"), {"total": 95.0 - i, "warnings": []}) for i in range(3)]
+        sim.reverse()
+        kept = [c["chunk_id"] for c, _ in F.cell_cap(sim)]
+        self.assertEqual(kept[:3], ["B00", "B01", "B02"])
+        self.assertEqual(sorted(k for k in kept if k.startswith("A")), [f"A{i:02d}" for i in range(10)])
+
+    def test_patterns_tie_on_count_broken_by_area(self):
+        names = {"1": "Corn", "5": "Soybeans", "24": "Winter Wheat", "61": "Fallow/Idle Cropland"}
+
+        def seq(codes, **kw):
+            r = with_(**kw)
+            for k, c in zip(F.CROP_KEYS, codes):
+                r[k] = c
+            return r
+
+        sim = [
+            (seq([1, 5] * 4, chunk_id="A", acres=100), {"total": 95.0, "warnings": []}),
+            (seq([24, 61] * 4, chunk_id="B", acres=300), {"total": 94.0, "warnings": []}),
+        ]
+        s = F.summarize(seq([1] * 8, chunk_id="R"), sim, names)
+        self.assertEqual([p["key"] for p in s["patterns"]], ["Fallow/Idle Cropland+Winter Wheat", "Corn+Soybeans"])
+
+
 class Total(unittest.TestCase):
     def test_only_slope_differs(self):
         # 경사만 50점 → 종합 = 100 − 0.06·50 = 97, 토양 블록 = 100 − 0.06·50/0.55

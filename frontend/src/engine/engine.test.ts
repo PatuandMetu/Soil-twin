@@ -7,8 +7,11 @@ import {
   applyCellCap,
   config,
   drainageFloodScore,
+  exact,
   findSimilar,
   gaussian,
+  meetsTau,
+  passesShiftGate,
   patternKey,
   profileOf,
   scorePair,
@@ -160,6 +163,53 @@ describe('상태', () => {
     expect(statusOf(70, 50, 95, 0)).toBe('climate_only')
     expect(statusOf(70, 70, 95, 0)).toBe('none')
     expect(statusOf(85, 70, 95, 1)).toBe('constrained')
+  })
+})
+
+describe('경계 비교 (소수 9자리 반올림)', () => {
+  it('exact는 부동소수점 꼬리를 지운다', () => {
+    expect(Math.abs(8.3 - 7.3)).not.toBe(1) // 1.0000000000000009
+    expect(exact(Math.abs(8.3 - 7.3))).toBe(1)
+  })
+
+  it('pH 7.3 vs 8.3은 차이가 1.0이라 경고 없음, 7.3 vs 8.4는 경고', () => {
+    const ref = makeChunk('a', { ph: 7.3 })
+    const codes = (ph: number) => warnings(profileOf(ref), profileOf(makeChunk('b', { ph }))).map((w) => w.code)
+    expect(codes(8.3)).toEqual([])
+    expect(codes(8.4)).toEqual(['ph'])
+  })
+
+  it('종합 점수가 수학적으로 정확히 80인 후보가 선택된다', () => {
+    // 감점: 토성 7.5(d 0.22 = t) + 유효수분 5(Δ 50 = t) + 산도 3(Δ 0.9 = t) + 유기물 1.5(Δ 2.2 = t)
+    //       + CEC 1.5(Δ 9 = t) + 경사 1.5(Δ 2.5 → 75점) = 20 → 종합 80
+    // 부동소수점 꼬리로 80 바로 밑이 되는 경우는 아래 meetsTau 테스트가 맡는다.
+    const ref = makeChunk('ref')
+    const cand = makeChunk('cand', { sand: 52, silt: 28, aws_mm: 250, ph: 7.4, om: 5.2, cec: 29, slope: 4.5 })
+    const r = findSimilar(ref, [ref, cand], false)
+    const s = r.candidates[0].score
+    expect(s.total).toBeCloseTo(80, 9)
+    expect(s.warnings).toEqual([])
+    expect(s.status).toBe('twin')
+    expect(r.selected.map((x) => x.chunk.chunk_id)).toEqual(['cand'])
+    expect(r.noneFound).toBe(false)
+  })
+
+  it('τ, 시프트 기후 게이트, 상태 판정도 반올림 값으로 비교', () => {
+    expect(meetsTau(80 - 1e-12)).toBe(true)
+    expect(meetsTau(80 - 1e-6)).toBe(false)
+    expect(passesShiftGate(85 - 1e-12)).toBe(true)
+    expect(passesShiftGate(85 - 1e-6)).toBe(false)
+    expect(statusOf(80 - 1e-12, 100, 100, 0)).toBe('twin')
+    // 토양 65 − 1e-12는 65로 보므로 "토양 < 65"가 아니다
+    expect(statusOf(70, 65 - 1e-12, 80 - 1e-12, 0)).toBe('none')
+    expect(statusOf(70, 65 - 1e-6, 80 - 1e-12, 0)).toBe('climate_only')
+  })
+
+  it('점수 자체는 반올림하지 않는다', () => {
+    const s = scorePair(profileOf(makeChunk('a', { ph: 6.5 })), profileOf(makeChunk('b', { ph: 7.4 })))
+    const ph = s.items.find((it) => it.key === 'ph')!
+    expect(ph.score).not.toBe(50)
+    expect(ph.score).toBeCloseTo(50, 9)
   })
 })
 

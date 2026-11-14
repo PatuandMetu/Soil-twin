@@ -1,5 +1,5 @@
 import { config as defaultConfig, type Config } from './config'
-import { profileOf, scorePair } from './score'
+import { meetsTau, passesShiftGate, profileOf, scorePair } from './score'
 import type { Chunk, Scored } from './types'
 
 export type SimilarResult = {
@@ -22,8 +22,8 @@ export function findSimilar(ref: Chunk, all: Chunk[], shifted: boolean, cfg: Con
     .map((chunk) => ({ chunk, score: scorePair(refProfile, profileOf(chunk), cfg) }))
     .sort(byScoreDesc)
 
-  const gated = shifted ? candidates.filter((s) => s.score.climate >= cfg.shiftClimateGate) : candidates
-  const aboveTau = gated.filter((s) => s.score.total >= cfg.tau)
+  const gated = shifted ? candidates.filter((s) => passesShiftGate(s.score.climate, cfg)) : candidates
+  const aboveTau = gated.filter((s) => meetsTau(s.score.total, cfg))
   const selected = aboveTau.slice(0, cfg.topK)
   const similar = selected.filter((s) => s.score.status === 'twin' || s.score.status === 'constrained')
 

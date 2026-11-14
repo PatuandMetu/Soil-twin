@@ -14,6 +14,8 @@ export const config = {
   patternMinCount: 2,
   /** 비교 카드에 넣는 흔한 패턴 수(현재 윤작 제외) */
   comparePatterns: 2,
+  /** 문턱·경계 비교는 소수 이 자리에서 반올림한 값으로 한다. 점수 자체는 반올림하지 않는다. */
+  comparePrecision: 9,
 
   /** climate_only 판정 */
   climateOnly: { climateMin: 80, soilMax: 65 },

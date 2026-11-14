@@ -12,6 +12,15 @@ import {
   type Warning,
 } from './types'
 
+/**
+ * 문턱·경계 비교용 값: 소수 comparePrecision자리에서 반올림해 부동소수점 꼬리를 지운다.
+ * 예: |8.3 − 7.3| = 1.0000000000000009 → 1. 점수 자체에는 쓰지 않고 비교할 때만 쓴다.
+ */
+export function exact(x: number, cfg: Config = defaultConfig): number {
+  const f = 10 ** cfg.comparePrecision
+  return Math.round(x * f) / f
+}
+
 /** 가우시안 점수: 차이가 t면 50점 */
 export function gaussian(a: number, b: number, t: number): number {
   const x = Math.abs(a - b) / t
@@ -78,17 +87,19 @@ export function itemScores(ref: Profile, cand: Profile, cfg: Config = defaultCon
   }
 }
 
-/** 재배 제약 경고 (Gate B). 점수는 바꾸지 않는다. */
+/** 재배 제약 경고 (Gate B). 점수는 바꾸지 않는다. 경계 비교는 exact 값으로 한다. */
 export function warnings(ref: Profile, cand: Profile, cfg: Config = defaultConfig): Warning[] {
   const g = cfg.gate
+  const ex = (x: number) => exact(x, cfg)
   const out: Warning[] = []
-  if (Math.abs(ref.drainage - cand.drainage) >= g.drainageDiff)
+  if (ex(Math.abs(ref.drainage - cand.drainage)) >= g.drainageDiff)
     out.push({ code: 'drainage', ref: ref.drainage, cand: cand.drainage })
-  if (Math.abs(ref.ph - cand.ph) > g.phDiff) out.push({ code: 'ph', ref: ref.ph, cand: cand.ph })
-  if (Math.abs(ref.flood - cand.flood) >= g.floodDiff) out.push({ code: 'flood', ref: ref.flood, cand: cand.flood })
-  if (ref.bedrock_cm < g.bedrockCm !== cand.bedrock_cm < g.bedrockCm)
+  if (ex(Math.abs(ref.ph - cand.ph)) > g.phDiff) out.push({ code: 'ph', ref: ref.ph, cand: cand.ph })
+  if (ex(Math.abs(ref.flood - cand.flood)) >= g.floodDiff)
+    out.push({ code: 'flood', ref: ref.flood, cand: cand.flood })
+  if (ex(ref.bedrock_cm) < g.bedrockCm !== ex(cand.bedrock_cm) < g.bedrockCm)
     out.push({ code: 'bedrock', ref: ref.bedrock_cm, cand: cand.bedrock_cm })
-  if (ref.ec >= g.ec !== cand.ec >= g.ec) out.push({ code: 'salinity', ref: ref.ec, cand: cand.ec })
+  if (ex(ref.ec) >= g.ec !== ex(cand.ec) >= g.ec) out.push({ code: 'salinity', ref: ref.ec, cand: cand.ec })
   return out
 }
 
@@ -111,9 +122,20 @@ export function scorePair(ref: Profile, cand: Profile, cfg: Config = defaultConf
   return { total, soil, climate, items, warnings: warns, status: statusOf(total, soil, climate, warns.length, cfg) }
 }
 
+/** 종합 점수가 τ 이상인가 (exact 값으로 비교) */
+export function meetsTau(total: number, cfg: Config = defaultConfig): boolean {
+  return exact(total, cfg) >= cfg.tau
+}
+
+/** 시프트 모드의 기후 게이트를 통과하는가 (exact 값으로 비교) */
+export function passesShiftGate(climate: number, cfg: Config = defaultConfig): boolean {
+  return exact(climate, cfg) >= cfg.shiftClimateGate
+}
+
 export function statusOf(total: number, soil: number, climate: number, nWarnings: number, cfg: Config = defaultConfig): Status {
-  if (total >= cfg.tau) return nWarnings === 0 ? 'twin' : 'constrained'
-  if (climate >= cfg.climateOnly.climateMin && soil < cfg.climateOnly.soilMax) return 'climate_only'
+  if (meetsTau(total, cfg)) return nWarnings === 0 ? 'twin' : 'constrained'
+  if (exact(climate, cfg) >= cfg.climateOnly.climateMin && exact(soil, cfg) < cfg.climateOnly.soilMax)
+    return 'climate_only'
   return 'none'
 }
 

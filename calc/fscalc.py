@@ -240,7 +240,9 @@ def cell_cap(similar: list) -> list:
 
 
 def summarize(ref: dict, similar: list, names: dict) -> dict:
-    counted = cell_cap(similar)
+    # 2번 이상 나온 작물이 없는 청크(빈 패턴)는 분자·분모·칸 상한 어디에도 넣지 않는다.
+    with_pattern = [x for x in similar if pattern_key(x[0], names) != ""]
+    counted = cell_cap(with_pattern)
     total = len(counted)
     total_acres = sum(c["acres"] for c, _ in counted)
     groups: dict[str, list] = {}

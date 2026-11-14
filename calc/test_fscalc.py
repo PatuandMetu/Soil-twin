@@ -143,6 +143,43 @@ class Warnings(unittest.TestCase):
         self.assertEqual(self.warn(base(), with_(ec=3.99)), [])
 
 
+class Boundary(unittest.TestCase):
+    """문턱은 "이상(≥)"이고, 비교는 소수 9자리 반올림 뒤에 한다 (문서 "경계 비교")."""
+
+    def exact80(self, **extra):
+        # 감점: 배수 2단계+침수 다름 → 10점(감점 9), 유효수분 r=1(5), 경사 5(3), 유기물 r=1(1.5), CEC r=1(1.5) → 합 20
+        kw = dict(chunk_id="E", drainage=5, flood=1, aws_mm=230.0, slope=7.0, om=5.2, cec=27.0)
+        kw.update(extra)
+        return with_(**kw)
+
+    def test_total_exactly_tau_is_selected(self):
+        ref, cand = with_(chunk_id="R"), self.exact80()
+        s = F.score_pair(ref, cand)
+        self.assertAlmostEqual(s["total"], 80.0, places=9)
+        self.assertEqual(s["status"], "constrained")  # 배수 2단계 차이 경고
+        r = F.find_similar(ref, [ref, cand], shifted=False)
+        self.assertEqual([c["chunk_id"] for c, _ in r["selected"]], ["E"])
+
+    def test_just_below_tau_is_not_selected(self):
+        ref, cand = with_(chunk_id="R"), self.exact80(slope=7.01)
+        r = F.find_similar(ref, [ref, cand], shifted=False)
+        self.assertEqual(r["selected"], [])
+        self.assertTrue(r["none_found"])
+
+    def test_shift_gate_is_inclusive(self):
+        ref = with_(chunk_id="R")
+        for k in F.TEMP_KEYS:
+            ref[f"s_{k}"] = ref[k] + 1.4
+        cand = with_(chunk_id="C")
+        climate = F.score_pair(F.profile(ref, True), cand)["climate"]
+        old = F.P["shift_climate_gate"]
+        self.addCleanup(F.P.__setitem__, "shift_climate_gate", old)
+        F.P["shift_climate_gate"] = F._exact(climate)  # 게이트와 정확히 같으면 통과
+        self.assertEqual(F.find_similar(ref, [ref, cand], shifted=True)["gated_count"], 1)
+        F.P["shift_climate_gate"] = F._exact(climate) + 1e-6  # 조금이라도 낮으면 탈락
+        self.assertEqual(F.find_similar(ref, [ref, cand], shifted=True)["gated_count"], 0)
+
+
 class Status(unittest.TestCase):
     def test_tau_wins_over_climate_only(self):
         self.assertEqual(F.status_of(80.2, 64.0, 100.0, 0), "twin")

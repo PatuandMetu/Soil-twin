@@ -4,13 +4,15 @@
 앱 엔진과 결과를 맞춰 보는 기준(정답지)으로 쓴다. 표준 라이브러리만 쓴다.
 
 식의 출처
-- 유사도 변수, 가중치, 허용 차이, 경고 조건: Field Shift 아키텍처 문서 (스펙 v0.2 기반)
+- Field Shift 아키텍처 문서의 "유사도 정의"와 "테이블 값 검사"
 - 상위 K, 시프트 기후 게이트, 기후 칸 상한, 패턴 키, 경고 세부 기준: MVP 1차 구현 지시
-- 지시에 없던 세부(상한 적용 후 분모, 빈 패턴, 동점 정렬): 앱 쪽이 보고한 처리 방식을 따른다
+- 지시에 없던 세부(상한 적용 후 분모, 동점 정렬): 앱 쪽이 보고한 처리 방식을 따른다
 
-앱과 일부러 다르게 한 점
-- 가우시안을 exp(-ln2·r²) 대신 2^(-r²)로 계산한다. 수학적으로 같고, 부동소수점 경로만 다르다.
-- 경고의 경계 비교는 소수 9자리에서 반올림한 값으로 한다. 7.3과 8.3의 차이는 수학적으로 정확히 1.0이다.
+계산 경로
+- 가우시안을 exp(-ln2·r²) 대신 2^(-r²)로 계산한다. 수학적으로 같은 식을 다른 경로로 계산해서,
+  앱과 같은 코드를 베낀 실수를 하지 않게 한다.
+- 문턱·경계 비교는 전부 소수 9자리에서 반올림한 값으로 한다(문서 "경계 비교"). 계산 경로가 달라도
+  판정은 같아야 한다.
 """
 
 from __future__ import annotations
@@ -80,9 +82,12 @@ CLIMATE_KEYS = TEMP_KEYS + PRECIP_KEYS + SCALAR_KEYS
 CROP_KEYS = [f"crop_{y}" for y in range(2018, 2026)]
 
 
+PRECISION = 9
+
+
 def _exact(x: float) -> float:
-    """경계 비교용. 입력이 소수 몇 자리 값일 때 생기는 부동소수점 꼬리를 지운다."""
-    return round(x, 9)
+    """문턱·경계 비교용. 소수 9자리에서 반올림해 부동소수점 꼬리를 지운다."""
+    return round(x, PRECISION)
 
 
 # ---------------------------------------------------------------------------
@@ -134,13 +139,13 @@ def item_scores(a: dict, b: dict) -> dict[str, float]:
 def warnings(a: dict, b: dict) -> list[str]:
     g = P["gate"]
     out = []
-    if abs(a["drainage"] - b["drainage"]) >= g["drainage_diff"]:
+    if _exact(abs(a["drainage"] - b["drainage"])) >= g["drainage_diff"]:
         out.append("drainage")
     if _exact(abs(a["ph"] - b["ph"])) > g["ph_diff"]:
         out.append("ph")
-    if abs(a["flood"] - b["flood"]) >= g["flood_diff"]:
+    if _exact(abs(a["flood"] - b["flood"])) >= g["flood_diff"]:
         out.append("flood")
-    if (a["bedrock_cm"] < g["bedrock_cm"]) != (b["bedrock_cm"] < g["bedrock_cm"]):
+    if (_exact(a["bedrock_cm"]) < g["bedrock_cm"]) != (_exact(b["bedrock_cm"]) < g["bedrock_cm"]):
         out.append("bedrock")
     if (_exact(a["ec"]) >= g["ec"]) != (_exact(b["ec"]) >= g["ec"]):
         out.append("salinity")
@@ -148,10 +153,10 @@ def warnings(a: dict, b: dict) -> list[str]:
 
 
 def status_of(total: float, soil: float, climate: float, n_warn: int) -> str:
-    if total >= P["tau"]:
+    if _exact(total) >= P["tau"]:
         return "twin" if n_warn == 0 else "constrained"
     co = P["climate_only"]
-    if climate >= co["climate_min"] and soil < co["soil_max"]:
+    if _exact(climate) >= co["climate_min"] and _exact(soil) < co["soil_max"]:
         return "climate_only"
     return "none"
 
@@ -192,8 +197,8 @@ def find_similar(ref: dict, chunks: list[dict], shifted: bool) -> dict:
     rp = profile(ref, shifted)
     cands = [(c, score_pair(rp, profile(c))) for c in chunks if c["chunk_id"] != ref["chunk_id"]]
     cands.sort(key=lambda x: (-x[1]["total"], x[0]["chunk_id"]))
-    gated = [x for x in cands if x[1]["climate"] >= P["shift_climate_gate"]] if shifted else cands
-    above = [x for x in gated if x[1]["total"] >= P["tau"]]
+    gated = [x for x in cands if _exact(x[1]["climate"]) >= P["shift_climate_gate"]] if shifted else cands
+    above = [x for x in gated if _exact(x[1]["total"]) >= P["tau"]]
     selected = above[: P["top_k"]]
     similar = [x for x in selected if x[1]["status"] in ("twin", "constrained")]
     return {"gated_count": len(gated), "selected": selected, "similar": similar, "none_found": len(above) == 0}

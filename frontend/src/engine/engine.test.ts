@@ -5,6 +5,7 @@ import {
   PRECIP_KEYS,
   TEMP_KEYS,
   applyCellCap,
+  compareCode,
   summarizeRotations,
   config,
   drainageFloodScore,
@@ -297,6 +298,32 @@ describe('핵심 닮은 청크는 토양 점수 65 이상', () => {
     expect(s.status).toBe('climate_only')
     expect(r.similar).toEqual([])
     expect(r.noneFound).toBe(true)
+  })
+})
+
+describe('동점 정렬: 유니코드 문자 코드 순서', () => {
+  const NAMES_LOWER: CropNames = { ...NAMES, '21': 'barley' }
+
+  it('대문자가 소문자보다 앞', () => {
+    expect(compareCode('B1', 'a1')).toBeLessThan(0)
+    expect(['a1', 'B1', 'A1'].sort(compareCode)).toEqual(['A1', 'B1', 'a1'])
+  })
+
+  it("후보 동점 'a1'과 'B1' → 'B1'이 먼저", () => {
+    const ref = makeChunk('ref')
+    const r = findSimilar(ref, [ref, makeChunk('a1'), makeChunk('B1')], false, NAMES)
+    expect(r.similar.map((s) => s.chunk.chunk_id)).toEqual(['B1', 'a1'])
+  })
+
+  it("패턴 'Corn'과 'barley' 동점(개수·면적 같음) → 'Corn'이 먼저", () => {
+    const corn = makeChunk('c', withCrops([1, 1, 1, 1, 1, 1, 1, 1]))
+    const barley = makeChunk('b', withCrops([21, 21, 21, 21, 21, 21, 21, 21]))
+    const sum = summarizeRotations(makeChunk('ref'), [scoredOf(barley), scoredOf(corn)], NAMES_LOWER)
+    expect(sum.patterns.map((p) => p.key)).toEqual(['Corn', 'barley'])
+  })
+
+  it('패턴 키 안 작물 이름도 문자 코드 순', () => {
+    expect(patternKey(makeChunk('x', withCrops([21, 1, 21, 1, 21, 1, 21, 1])), NAMES_LOWER)).toBe('Corn+barley')
   })
 })
 

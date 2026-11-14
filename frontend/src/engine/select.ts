@@ -1,4 +1,5 @@
 import { config as defaultConfig, type Config } from './config'
+import { compareCode } from './order'
 import { patternKey } from './rotation'
 import { passesShiftGate, profileOf, scorePair } from './score'
 import type { Chunk, CropNames, Scored, Status } from './types'
@@ -61,7 +62,7 @@ export function applyCellCap(scored: Scored[], cap: number): Scored[] {
   return out
 }
 
-/** 점수 높은 순, 같으면 chunk_id 순 */
+/** 점수 높은 순, 같으면 chunk_id 문자 코드 순 */
 export function byScoreDesc(a: Scored, b: Scored): number {
-  return b.score.total - a.score.total || a.chunk.chunk_id.localeCompare(b.chunk.chunk_id)
+  return b.score.total - a.score.total || compareCode(a.chunk.chunk_id, b.chunk.chunk_id)
 }

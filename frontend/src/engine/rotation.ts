@@ -1,11 +1,12 @@
 import { config as defaultConfig, type Config } from './config'
+import { compareCode } from './order'
 import { CROP_KEYS, type Chunk, type CropNames, type Scored } from './types'
 
 export function cropName(code: number, names: CropNames): string {
   return names[String(code)] ?? `CDL ${code}`
 }
 
-/** 8년 중 minCount번 이상 나온 작물을 이름순으로 정렬해 +로 잇는다. 없으면 빈 문자열. */
+/** 8년 중 minCount번 이상 나온 작물을 이름의 문자 코드 순으로 정렬해 +로 잇는다. 없으면 빈 문자열. */
 export function patternKey(chunk: Chunk, names: CropNames, minCount = defaultConfig.patternMinCount): string {
   const counts = new Map<string, number>()
   for (const k of CROP_KEYS) {
@@ -15,7 +16,7 @@ export function patternKey(chunk: Chunk, names: CropNames, minCount = defaultCon
   return [...counts]
     .filter(([, n]) => n >= minCount)
     .map(([name]) => name)
-    .sort()
+    .sort(compareCode)
     .join('+')
 }
 
@@ -81,7 +82,7 @@ export function summarizeRotations(
 
   const patterns = [...groups.keys()]
     .map(stat)
-    .sort((a, b) => b.count - a.count || b.acres - a.acres || a.key.localeCompare(b.key))
+    .sort((a, b) => b.count - a.count || b.acres - a.acres || compareCode(a.key, b.key))
   const current = stat(patternKey(ref, names, cfg.patternMinCount))
   const others = patterns.filter((p) => p.key !== current.key).slice(0, cfg.comparePatterns)
 

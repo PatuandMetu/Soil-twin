@@ -50,7 +50,7 @@ export type PatternStat = {
 }
 
 export type RotationSummary = {
-  /** 기후 칸 상한을 적용한 뒤 실제로 센 닮은 청크 */
+  /** 빈 패턴 청크를 빼고 기후 칸 상한을 적용한 뒤 실제로 센 닮은 청크 */
   counted: Scored[]
   /** 흔한 순 전체 패턴 */
   patterns: PatternStat[]
@@ -66,7 +66,10 @@ export function summarizeRotations(
   names: CropNames,
   cfg: Config = defaultConfig,
 ): RotationSummary {
-  const counted = applyCellCap(similar, cfg.cellCap)
+  // 2번 이상 나온 작물이 없는 청크(빈 패턴)는 분자·분모·기후 칸 상한 어디에도 넣지 않는다.
+  // 닮은 청크 목록(similar) 자체에서는 빼지 않고, 집계에서만 뺀다.
+  const withPattern = similar.filter((s) => patternKey(s.chunk, names, cfg.patternMinCount) !== '')
+  const counted = applyCellCap(withPattern, cfg.cellCap)
   const total = counted.length
   const totalAcres = counted.reduce((s, x) => s + x.chunk.acres, 0)
 

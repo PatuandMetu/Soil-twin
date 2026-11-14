@@ -5,6 +5,7 @@ import {
   PRECIP_KEYS,
   TEMP_KEYS,
   applyCellCap,
+  summarizeRotations,
   config,
   drainageFloodScore,
   exact,
@@ -289,6 +290,46 @@ describe('기후 칸 상한', () => {
     expect(a).toHaveLength(10)
     expect(Math.min(...a.map((s) => s.score.total))).toBe(85)
     expect(kept.filter((s) => s.chunk.climate_cell === 'B')).toHaveLength(3)
+  })
+})
+
+describe('윤작 집계: 빈 패턴 청크 제외', () => {
+  const CORN_SOY = withCrops([1, 5, 1, 5, 1, 5, 1, 5])
+  const EMPTY = withCrops([1, 5, 24, 61, 36, 21, 28, 4]) // 8년 모두 다른 작물 → 빈 패턴
+  const scored = (id: string, cell: string, total: number, crops: Partial<Chunk>, acres = 100): Scored => ({
+    chunk: makeChunk(id, { climate_cell: cell, acres, ...crops }),
+    score: { total, soil: total, climate: total, items: [], warnings: [], status: 'twin' },
+  })
+
+  it('빈 패턴 청크는 분모와 기후 칸 상한 자리를 차지하지 않는다', () => {
+    const similar = [
+      // 칸 A에서 점수가 가장 높은 3개가 빈 패턴. 빼지 않으면 상한 10개 중 3자리를 차지한다.
+      ...Array.from({ length: 3 }, (_, i) => scored(`E${i}`, 'A', 95 + i, EMPTY)),
+      ...Array.from({ length: 10 }, (_, i) => scored(`P${i}`, 'A', 80 + i, CORN_SOY)),
+      scored('EB', 'B', 99, EMPTY, 500),
+    ]
+    const sum = summarizeRotations(makeChunk('ref', CORN_SOY), similar, NAMES)
+    expect(sum.counted.map((s) => s.chunk.chunk_id).sort()).toEqual(
+      Array.from({ length: 10 }, (_, i) => `P${i}`).sort(),
+    )
+    expect(sum.patterns.map((p) => p.key)).toEqual(['Corn+Soybeans'])
+    expect(sum.current).toMatchObject({
+      key: 'Corn+Soybeans',
+      count: 10,
+      total: 10,
+      acres: 1000,
+      totalAcres: 1000,
+      areaShare: 1,
+      cellCount: 1,
+    })
+    expect(similar).toHaveLength(14) // 입력한 닮은 청크 목록은 그대로
+  })
+
+  it('기준 청크가 빈 패턴이면 현재 윤작 카드는 count 0', () => {
+    const similar = [scored('P0', 'A', 90, CORN_SOY), scored('E0', 'A', 95, EMPTY)]
+    const sum = summarizeRotations(makeChunk('ref', EMPTY), similar, NAMES)
+    expect(sum.current).toMatchObject({ key: '', count: 0, total: 1 })
+    expect(sum.cards.map((c) => c.key)).toEqual(['', 'Corn+Soybeans'])
   })
 })
 

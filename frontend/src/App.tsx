@@ -1,33 +1,34 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { MapView, type MapFocus, type PickedOnMap, type RegionPin } from './components/MapView'
 import { cellIdOf, centroidOf, cropsOf, stateOfFips, type CsbFeature } from './csb'
 import { loadData } from './data'
 import { findSimilar, groupRegions, type Chunk, type CropNames, type Status } from './engine'
-import { PanelHost } from './panels/PanelHost'
-import { geocode, inMainland, nearestSample, parseCoords } from './search'
-import { usePanels } from './panels/context'
 import { freePadding } from './panels/geometry'
-import { AppStateContext, IDLE_SEARCH, type AppActions, type AppState, type PickedField, type SearchState } from './state'
+import { geocode, inMainland, nearestSample, parseCoords } from './search'
+import {
+  AppStateContext,
+  IDLE_SEARCH,
+  type AppActions,
+  type AppState,
+  type PickedField,
+  type SearchState,
+  type SideTab,
+} from './state'
 import { km } from './text'
 import { Legend } from './views/Legend'
-import { MAIN_PANELS, mainPanelOptions } from './views/panels'
+import { DOCK_BOTTOM, DOCK_GAP, DOCK_TOP, DOCK_WIDTH, SideDock } from './views/panels'
 import { Toolbar } from './views/Toolbar'
 
 type Data = { chunks: Chunk[]; crops: CropNames }
 
 export default function App() {
-  const { open, wasClosed, panels } = usePanels()
-  // 검색으로 지도를 옮길 때 패널 자리를 비우려고 최신 패널 위치를 들고 있는다
-  const panelRects = useRef(panels)
-  useEffect(() => {
-    panelRects.current = panels
-  }, [panels])
   const [data, setData] = useState<Data | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [refId, setRefId] = useState<string | null>(null)
   const [shifted, setShifted] = useState(false)
   const [cell, setCell] = useState<string | null>(null)
   const [compareId, setCompareId] = useState<string | null>(null)
+  const [tab, setTab] = useState<SideTab>('info')
   const [search, setSearch] = useState<SearchState>(IDLE_SEARCH)
   const [focus, setFocus] = useState<MapFocus | null>(null)
   const [picked, setPicked] = useState<PickedField | null>(null)
@@ -37,13 +38,6 @@ export default function App() {
       .then((d) => setData({ chunks: d.chunks, crops: d.crops }))
       .catch((e: unknown) => setError(String(e)))
   }, [])
-
-  // 처음: 지난번에 닫아 두지 않은 기본 패널을 연다
-  useEffect(() => {
-    if (!data) return
-    for (const id of MAIN_PANELS) if (!wasClosed(id)) open(id, mainPanelOptions(id, window.innerWidth, window.innerHeight))
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- 데이터가 처음 왔을 때 한 번만
-  }, [data])
 
   const ref = useMemo(() => data?.chunks.find((c) => c.chunk_id === refId) ?? null, [data, refId])
   const result = useMemo(
@@ -63,6 +57,7 @@ export default function App() {
     setCell(null)
     setCompareId(null)
     setPicked(null)
+    setTab('info')
   }, [])
   const selectChunk = useCallback(
     (id: string) => {
@@ -133,12 +128,15 @@ export default function App() {
         tone: 'info',
         place: { ...place, nearestKm: near.km },
       })
-      const padding = freePadding(
-        panelRects.current.filter((p) => !p.collapsed).map((p) => p.rect),
-        window.innerWidth,
-        window.innerHeight,
-        { top: 110, bottom: 60, left: 40, right: 40 },
-      )
+      const vw = window.innerWidth
+      const vh = window.innerHeight
+      const dockRect = {
+        x: Math.max(0, vw - DOCK_WIDTH - DOCK_GAP),
+        y: DOCK_TOP,
+        w: DOCK_WIDTH,
+        h: Math.max(200, vh - DOCK_TOP - DOCK_BOTTOM),
+      }
+      const padding = freePadding([dockRect], vw, vh, { top: 110, bottom: 60, left: 40, right: 40 })
       setFocus((f) => ({
         seq: (f?.seq ?? 0) + 1,
         padding,
@@ -150,14 +148,11 @@ export default function App() {
     },
     [chunks, pick],
   )
-  const selectRegion = useCallback(
-    (c: string) => {
-      setCell(c)
-      setCompareId(null)
-      open('detail', mainPanelOptions('detail', window.innerWidth, window.innerHeight))
-    },
-    [open],
-  )
+  const selectRegion = useCallback((c: string) => {
+    setCell(c)
+    setCompareId(null)
+    setTab('detail')
+  }, [])
   const actions = useMemo<AppActions>(
     () => ({
       selectChunk,
@@ -168,6 +163,7 @@ export default function App() {
       setShifted,
       selectRegion,
       setCompare: setCompareId,
+      setTab,
       search: (q) => void runSearch(q),
       dismissSearch: () => setSearch((x) => ({ ...x, message: null })),
     }),
@@ -185,11 +181,12 @@ export default function App() {
         regions,
         region,
         compareId,
+        tab,
         search,
         picked,
         actions,
       },
-    [data, ref, shifted, result, regions, region, compareId, search, picked, actions],
+    [data, ref, shifted, result, regions, region, compareId, tab, search, picked, actions],
   )
 
   if (error) return <p className="status">Could not load the data: {error}</p>
@@ -212,7 +209,7 @@ export default function App() {
         place={search.place}
       />
       <Toolbar />
-      <PanelHost />
+      <SideDock />
       <Legend />
     </AppStateContext.Provider>
   )

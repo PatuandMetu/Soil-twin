@@ -33,15 +33,18 @@ export type PickedField = {
 
 export const IDLE_SEARCH: SearchState = { busy: false, message: null, tone: 'info', place: null }
 
+export type SideTab = 'info' | 'detail'
+
 export type AppActions = {
   selectChunk: (id: string) => void
   clearRef: () => void
   setShifted: (v: boolean) => void
-  /** 지역을 고르고 Detail 패널을 연다 */
+  /** 지역을 고르고 Detail 탭으로 전환한다 */
   selectRegion: (cell: string) => void
   setCompare: (id: string) => void
+  setTab: (tab: SideTab) => void
   search: (query: string) => void
-  /** 검색 결과 말풍선만 닫는다 (찾은 자리와 거리는 Areas에 남는다) */
+  /** 검색 결과 말풍선만 닫는다 (찾은 자리와 거리는 Land Info에 남는다) */
   dismissSearch: () => void
 }
 
@@ -54,8 +57,8 @@ export type AppState = {
   regions: Region[]
   /** 지금 보는 지역 (고른 것이 없으면 1위) */
   region: Region | null
-  /** Crops 패널에서 내 밭과 나란히 볼 밭 */
   compareId: string | null
+  tab: SideTab
   search: SearchState
   /** 지도에서 고른 실제 밭 (표본 점이나 검색으로 골랐으면 null) */
   picked: PickedField | null

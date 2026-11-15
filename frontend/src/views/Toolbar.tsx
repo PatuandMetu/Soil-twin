@@ -1,10 +1,12 @@
+import { useState } from 'react'
 import { usePanels } from '../panels/context'
 import { useAppState } from '../state'
 import { MAIN_PANELS, PANEL_TITLE, mainPanelOptions } from './panels'
 
 export function Toolbar() {
-  const { ref, shifted, actions } = useAppState()
+  const { ref, shifted, search, actions } = useAppState()
   const panels = usePanels()
+  const [q, setQ] = useState('')
   return (
     <div className="toolbar" role="toolbar" aria-label="Field Shift">
       <span className="brand">Field Shift</span>
@@ -28,6 +30,31 @@ export function Toolbar() {
           </button>
         ))}
       </div>
+      <form
+        className="search"
+        role="search"
+        onSubmit={(e) => {
+          e.preventDefault()
+          if (!search.busy) actions.search(q)
+        }}
+      >
+        <input
+          type="search"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="Find my field: town, address, or 42.03, -93.62"
+          aria-label="Find my field by place name, address, or coordinates"
+        />
+        <button type="submit" className="btn" disabled={search.busy || !q.trim()}>
+          {search.busy ? 'Searching…' : 'Search'}
+        </button>
+        {search.message && !search.busy && (
+          <div className={`search-msg ${search.tone}`} role="status">
+            {search.message}
+            {search.place && <span className="muted"> from {search.place.label}</span>}
+          </div>
+        )}
+      </form>
       <button type="button" className="btn" disabled={!ref} onClick={actions.clearRef}>
         Change field
       </button>

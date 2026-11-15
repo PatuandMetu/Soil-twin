@@ -4,6 +4,7 @@ import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url'
 import { useEffect, useMemo, useRef } from 'react'
 import type { Chunk, Status } from '../engine'
 import { MAP_COLOR } from '../mapColors'
+import type { Padding } from '../panels/geometry'
 
 // maplibre-gl v6는 워커 파일을 따로 읽는다. Vite가 내보낸 주소를 알려 준다.
 setWorkerUrl(workerUrl)
@@ -87,6 +88,9 @@ function boundsOf(chunks: Chunk[]): [[number, number], [number, number]] {
 
 const STROKE = { 'circle-stroke-color': '#333', 'circle-stroke-width': 1, 'circle-opacity': 0.9 }
 
+/** 지도를 이 범위로 옮긴다. seq가 바뀔 때마다 한 번 */
+export type MapFocus = { seq: number; bounds: [[number, number], [number, number]]; padding: Padding }
+
 /** 지도에 번호로 표시하는 비슷한 지역 */
 export type RegionPin = { cell: string; rank: number; lat: number; lon: number }
 
@@ -100,9 +104,12 @@ type Props = {
   activeCell: string | null
   onSelect: (id: string) => void
   onSelectRegion: (cell: string) => void
+  focus: MapFocus | null
+  /** 검색으로 찾은 자리 (핀 표시) */
+  place: { lat: number; lon: number; label: string } | null
 }
 
-export function MapView({ chunks, refId, similar, regions, activeCell, onSelect, onSelectRegion }: Props) {
+export function MapView({ chunks, refId, similar, regions, activeCell, onSelect, onSelectRegion, focus, place }: Props) {
   const el = useRef<HTMLDivElement>(null)
   const mapRef = useRef<MapLibreMap | null>(null)
   const onSelectRef = useRef(onSelect)
@@ -218,6 +225,24 @@ export function MapView({ chunks, refId, similar, regions, activeCell, onSelect,
     })
     return () => pins.forEach((m) => m.remove())
   }, [regions, activeCell, chunks])
+
+  // 검색 결과로 옮기기: 찾은 자리와 가장 가까운 표본 밭이 같이 보이게 (여백은 패널 자리)
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !focus) return
+    map.fitBounds(focus.bounds, { padding: focus.padding, maxZoom: 12, duration: 1200 })
+  }, [focus])
+
+  // 찾은 자리 핀
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !place) return
+    const m = new Marker({ color: '#1565c0' }).setLngLat([place.lon, place.lat]).addTo(map)
+    m.getElement().title = place.label
+    return () => {
+      m.remove()
+    }
+  }, [place, chunks])
 
   // MapLibre CSS가 지도 칸을 position: relative로 바꾸므로, 화면 전체 고정은 바깥 칸이 맡는다
   return (

@@ -8,7 +8,6 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview",
-    "data:fake": "node scripts/make-fake-data.mjs",
     "test": "vitest run"
   },
   "dependencies": {

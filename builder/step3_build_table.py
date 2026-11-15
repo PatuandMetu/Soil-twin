@@ -16,6 +16,7 @@ IN_CSB = os.path.join(OUT_DIR, "raw_csb_sample.json")
 POWER_DIR = os.path.join(OUT_DIR, "raw_power")
 SSURGO_FILE = os.path.join(OUT_DIR, "raw_ssurgo.jsonl")
 SSURGO_AREA_FILE = os.path.join(OUT_DIR, "raw_ssurgo_area.jsonl")
+NEXGDDP_DELTAS_FILE = os.path.join(OUT_DIR, "raw_nexgddp_deltas.json")
 OUT_CHUNKS = str(PUBLIC_DIR / "chunks.json")
 IN_CROPS = os.path.join(OUT_DIR, "crops.json")
 OUT_CROPS = str(PUBLIC_DIR / "crops.json")
@@ -360,7 +361,15 @@ def compute_metrics_from_daily(daily_rows, baseline_apr_sep_precip=None):
     }
 
 
-def compute_climate_for_cell(cid: str) -> dict | None:
+def compute_climate_for_cell(cid: str, deltas_by_cell: dict) -> dict | None:
+    cell_deltas = deltas_by_cell.get(cid)
+    if cell_deltas is None:
+        return None
+    dt2m_arr = cell_deltas["delta_t2m"]
+    dtmax_arr = cell_deltas.get("delta_tmax", dt2m_arr)
+    dtmin_arr = cell_deltas.get("delta_tmin", dt2m_arr)
+    rp_arr = cell_deltas["ratio_p"]
+
     path = os.path.join(POWER_DIR, f"{cid}.json")
     if not os.path.exists(path):
         return None
@@ -396,14 +405,20 @@ def compute_climate_for_cell(cid: str) -> dict | None:
         gwet = clean(gwet_d.get(dt_str))
         cur_rows.append((yr, mo, dy, t2m, tmax, tmin, prec, gwet))
 
-        # Shift scenario: +2.2 C temperature, -15% Apr-Sep precipitation
-        s_t2m = (t2m + 2.2) if t2m is not None else None
-        s_tmax = (tmax + 2.2) if tmax is not None else None
-        s_tmin = (tmin + 2.2) if tmin is not None else None
-        if prec is not None:
-            s_prec = prec * 0.85 if (4 <= mo <= 9) else prec
-        else:
-            s_prec = None
+        # Near-future (2035-2050, SSP2-4.5) 3-GCM ensemble median monthly delta method
+        dt_t2m = float(dt2m_arr[mo - 1])
+        dt_tmax = float(dtmax_arr[mo - 1])
+        dt_tmin = float(dtmin_arr[mo - 1])
+        r_p = float(rp_arr[mo - 1])
+
+        s_t2m = (t2m + dt_t2m) if t2m is not None else None
+        s_tmax = (tmax + dt_tmax) if tmax is not None else None
+        s_tmin = (tmin + dt_tmin) if tmin is not None else None
+        if s_t2m is not None and s_tmax is not None and s_tmax < s_t2m:
+            s_tmax = s_t2m
+        if s_t2m is not None and s_tmin is not None and s_tmin > s_t2m:
+            s_tmin = s_t2m
+        s_prec = (prec * r_p) if prec is not None else None
         shift_rows.append((yr, mo, dy, s_t2m, s_tmax, s_tmin, s_prec, gwet))
 
     cur = compute_metrics_from_daily(cur_rows, baseline_apr_sep_precip=None)
@@ -487,10 +502,12 @@ def main():
                 area_by_id[obj["chunk_id"]] = obj["areas"]
 
     # Compute climate per cell
+    with open(NEXGDDP_DELTAS_FILE, encoding="utf-8") as f:
+        deltas_by_cell = json.load(f)["cells"]
     cells = sorted({x["climate_cell"] for x in samples})
     climate_by_cell = {}
     for cid in cells:
-        clim = compute_climate_for_cell(cid)
+        clim = compute_climate_for_cell(cid, deltas_by_cell)
         if clim is not None:
             climate_by_cell[cid] = clim
 

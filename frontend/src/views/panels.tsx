@@ -159,18 +159,16 @@ export function SideColumns() {
 
   return (
     <div ref={root} className={`side-cols${dragging ? ' resizing' : ''}`}>
-      {infoCollapsed && (
-        <button
-          type="button"
-          className="side-fold-tab"
-          aria-expanded={false}
-          aria-label="Expand Land Info"
-          title="Expand Land Info"
-          onClick={() => setInfoCollapsed(false)}
-        >
-          ◂ Land Info
-        </button>
-      )}
+      <button
+        type="button"
+        className="side-fold-tab"
+        aria-expanded={!infoCollapsed}
+        aria-label={infoCollapsed ? 'Expand Land Info' : 'Collapse Land Info'}
+        title={infoCollapsed ? 'Expand Land Info' : 'Collapse Land Info'}
+        onClick={() => setInfoCollapsed((v) => !v)}
+      >
+        {infoCollapsed ? '◂' : '▸'}
+      </button>
       {!infoCollapsed && (
         <section ref={infoCol} className="side-col info-col" aria-label="Land Info">
           {resizer('map', 'Resize map and Land Info')}
@@ -186,16 +184,6 @@ export function SideColumns() {
                 Comparison
               </button>
             )}
-            <button
-              type="button"
-              className="fp-btn"
-              aria-expanded={true}
-              aria-label="Collapse Land Info"
-              title="Collapse Land Info"
-              onClick={() => setInfoCollapsed(true)}
-            >
-              ▸
-            </button>
           </div>
           <div className="fp-body side-body">
             <AreasView />

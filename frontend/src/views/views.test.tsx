@@ -168,6 +168,19 @@ describe('표본 밭 거리·기후 칸 안내', () => {
     expect(farHtml).toContain('It is in a different climate area, so results are less reliable.')
   })
 
+  it('DetailView: 지역 윤작 상위 목록과 Show fields on the map 버튼을 그린다', () => {
+    const html = renderToStaticMarkup(
+      <AppStateContext.Provider value={makeState()}>
+        <DetailView />
+      </AppStateContext.Provider>,
+    )
+    expect(html).toContain('Show fields on the map')
+    expect(html).toContain('Rotations in this area')
+    expect(html).toContain('Corn + Soybeans')
+    expect(html).toContain('same as yours')
+    expect(html).toContain('Choices, not proof they worked.')
+  })
+
   it('SideColumns: Land Info 접기 버튼과 Comparison 닫기 버튼을 함께 그린다', () => {
     const html = renderToStaticMarkup(
       <AppStateContext.Provider value={makeState()}>

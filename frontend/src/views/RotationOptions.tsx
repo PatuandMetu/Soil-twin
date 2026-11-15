@@ -1,12 +1,11 @@
 import {
-  CROP_KEYS,
   METRIC_KEYS,
   rotationOptions,
   type MetricKey,
   type RotationOption,
   type Spread,
 } from '../engine'
-import { useAppState } from '../state'
+import { useAppState, useYourRotation } from '../state'
 import { patternLabel, plural } from '../text'
 
 const METRIC_LABEL: Record<MetricKey, string> = {
@@ -104,13 +103,10 @@ const NOTE_TEXT = {
 
 /** Land Info 아래: 현재 윤작 + 닮은 밭들의 흔한 대안 2개 (지금 기후 모드 기준, 다른 모드 비율 함께) */
 export function RotationOptionsSection() {
-  const { ref, crops, picked, shifted, result, otherResult } = useAppState()
-  if (!ref || !result) return null
+  const { ref, crops, shifted, result, otherResult } = useAppState()
+  const current = useYourRotation()
+  if (!ref || !result || !current) return null
 
-  // 현재 윤작 기준: 실제 밭을 골랐으면 그 밭 2017~2024, 아니면 연결된 표본 2018~2025
-  const current = picked
-    ? { codes: picked.crops, label: 'Your field, 2017–2024' }
-    : { codes: CROP_KEYS.map((k) => ref[k]), label: `Sample field …${ref.chunk_id.slice(-6)}, 2018–2025` }
   const r = rotationOptions(
     current,
     { similar: result.similar, noneFound: result.noneFound },

@@ -556,11 +556,11 @@ button {
   text-decoration: underline;
 }
 .patterns {
-  margin: 4px 0;
+  margin: 4px 0 6px;
   padding-left: 18px;
 }
 .patterns li {
-  margin: 2px 0;
+  margin: 3px 0;
 }
 
 /* 지도에 붙는 작물 팝업 (내 밭, 지역) */
@@ -589,6 +589,11 @@ button {
   padding: 6px 8px 8px;
   max-width: 340px;
 }
+.region-pop .pop-body {
+  max-width: 400px;
+  max-height: 320px;
+  overflow: auto;
+}
 .pop-body p {
   margin: 3px 0 6px;
 }
@@ -597,6 +602,9 @@ button {
   font-weight: 600;
   color: var(--muted);
   margin: 6px 0 2px;
+}
+.pop-sub:first-child {
+  margin-top: 0;
 }
 .pop-btn {
   border: 1px solid var(--line);
@@ -609,19 +617,9 @@ button {
 .pop-btn:hover {
   background: var(--soft);
 }
-.pop-details {
-  max-height: 320px;
-  max-width: 400px;
-  overflow: auto;
-  margin-top: 6px;
-  border-top: 1px solid var(--line);
-}
 .caveat.small {
-  padding: 2px 6px;
-  font-size: 11px;
-}
-.pop-body .patterns {
-  padding-left: 16px;
+  padding: 4px 8px;
+  font-size: 12px;
 }
 
 /* 윤작 전략 카드 */

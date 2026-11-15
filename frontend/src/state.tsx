@@ -1,6 +1,6 @@
 import { createContext, useContext } from 'react'
 import type { CsbGeometry } from './csb'
-import type { Chunk, CropNames, Region, SimilarResult } from './engine'
+import { CROP_KEYS, patternKeyOf, type Chunk, type CropNames, type Region, type SimilarResult } from './engine'
 
 export type SearchState = {
   busy: boolean
@@ -82,4 +82,18 @@ export function useAppState(): AppState {
   const s = useContext(AppStateContext)
   if (!s) throw new Error('useAppState는 AppStateContext 안에서 쓴다')
   return s
+}
+
+export const shortId = (id: string) => `…${id.slice(-6)}`
+
+/** 내 윤작 기준: 실제 밭을 골랐으면 그 밭 2017~2024, 아니면 연결된 표본 2018~2025 */
+export function useYourRotation(): { codes: number[]; key: string; label: string } | null {
+  const { ref, crops, picked } = useAppState()
+  if (!ref) return null
+  const codes = picked ? picked.crops : CROP_KEYS.map((k) => ref[k])
+  return {
+    codes,
+    key: patternKeyOf(codes, crops),
+    label: picked ? 'Your field, 2017–2024' : `Sample field ${shortId(ref.chunk_id)}, 2018–2025`,
+  }
 }

@@ -1,14 +1,19 @@
-import { profileOf, type Block, type Warning } from '../engine'
+import { profileOf, summarizeRotations, type Block, type Warning } from '../engine'
 import { describeItems } from '../describe'
-import { useAppState } from '../state'
-import { WARNING_SHORT, km, pct, plural } from '../text'
+import { useAppState, useYourRotation } from '../state'
+import { WARNING_SHORT, km, patternLabel, pct, plural } from '../text'
 
-/** Comparison 칸: 고른 지역의 항목별 유사율과 실제 값 비교. 작물은 지도 위 지역 팝업에서 본다 */
+/** 지역 윤작 요약 상위 개수 */
+const TOP_ROTATIONS = 3
+
+/** Comparison 칸: 고른 지역의 윤작 요약과 항목별 유사율·실제 값 비교. 개별 밭 8년 작물 띠는 지도 팝업에서 본다 */
 export function DetailView() {
-  const { ref, shifted, region, picked, actions } = useAppState()
-  if (!ref) return null
+  const { ref, crops, shifted, region, picked, actions } = useAppState()
+  const yours = useYourRotation()
+  if (!ref || !yours) return null
   if (!region) return <p className="empty">No similar area to show.</p>
 
+  const summary = summarizeRotations(ref, region.members, crops)
   const rows = describeItems(profileOf(ref, shifted), region)
   const n = region.members.length
   const counts = new Map<Warning['code'], number>()
@@ -22,8 +27,18 @@ export function DetailView() {
         {km(region.distanceKm)} {region.direction} of your field · {plural(n, 'field')}
       </p>
       <button type="button" className="btn" onClick={() => actions.showRegionOnMap(region.cell)}>
-        Show crops on the map
+        Show fields on the map
       </button>
+      <h3 className="section">Rotations in this area</h3>
+      <ul className="patterns">
+        {summary.patterns.slice(0, TOP_ROTATIONS).map((p) => (
+          <li key={p.key}>
+            <b>{patternLabel(p.key)}</b>: {p.count} of {p.total}, {pct(p.areaShare * 100)} of area
+            {p.key === yours.key && <span className="badge same">same as yours</span>}
+          </li>
+        ))}
+      </ul>
+      <p className="caveat small">Choices, not proof they worked.</p>
       <h3 className="section">How this area compares</h3>
       <p className="muted">
         Each score is the median over the {plural(n, 'field')} here{n > 1 ? ' (soil also shows the range)' : ''}. “There”

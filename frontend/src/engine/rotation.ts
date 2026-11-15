@@ -8,9 +8,18 @@ export function cropName(code: number, names: CropNames): string {
 
 /** 8년 중 minCount번 이상 나온 작물을 이름의 문자 코드 순으로 정렬해 +로 잇는다. 없으면 빈 문자열. */
 export function patternKey(chunk: Chunk, names: CropNames, minCount = defaultConfig.patternMinCount): string {
+  return patternKeyOf(
+    CROP_KEYS.map((k) => chunk[k]),
+    names,
+    minCount,
+  )
+}
+
+/** patternKey와 같은 규칙을 작물 코드 목록에 (예: USDA 실제 밭의 2017~2024) */
+export function patternKeyOf(codes: number[], names: CropNames, minCount = defaultConfig.patternMinCount): string {
   const counts = new Map<string, number>()
-  for (const k of CROP_KEYS) {
-    const name = cropName(chunk[k], names)
+  for (const code of codes) {
+    const name = cropName(code, names)
     counts.set(name, (counts.get(name) ?? 0) + 1)
   }
   return [...counts]

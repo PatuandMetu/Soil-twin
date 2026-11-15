@@ -1,7 +1,7 @@
 """앱 엔진(TypeScript)과 이 계산기의 결과를 모든 기준 청크·두 모드에서 맞춰 본다.
 
 실행: python3 crosscheck.py [앱 frontend 폴더] [데이터 파일]
-  인자 없이 돌리면 이 저장소의 ../frontend와 그 안의 public/data/chunks.fake.json을 쓴다.
+  인자 없이 돌리면 이 저장소의 ../frontend와 그 안의 public/data/chunks.json(실데이터)을 쓴다.
 
 앱 폴더는 읽기만 한다. 엔진을 그 폴더의 rolldown으로 임시 폴더에 묶어 node로 돌린다.
 """
@@ -92,7 +92,7 @@ def compare(app: dict, calc: dict) -> list[str]:
 def main() -> None:
     default_frontend = Path(__file__).resolve().parent.parent / "frontend"
     frontend = Path(sys.argv[1]).expanduser().resolve() if len(sys.argv) > 1 else default_frontend
-    data = Path(sys.argv[2]).expanduser().resolve() if len(sys.argv) > 2 else frontend / "public" / "data" / "chunks.fake.json"
+    data = Path(sys.argv[2]).expanduser().resolve() if len(sys.argv) > 2 else frontend / "public" / "data" / "chunks.json"
     chunks, names = F.load(data)
     app = run_engine(frontend, data)
     calc = [F.run_ref(c, chunks, names, sh) for c in chunks for sh in (False, True)]

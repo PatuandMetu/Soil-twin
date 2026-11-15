@@ -22,15 +22,15 @@ Field Shift 유사도 계산을 앱과 따로 다시 짠 계산기. 앱 엔진(`
 
 ```sh
 # 두 청크의 항목별 점수와 감점
-python3 fscalc.py pair ../frontend/public/data/chunks.fake.json C01-01 C03-10 [--shift]
+python3 fscalc.py pair ../frontend/public/data/chunks.json 191825000032321 191825003203091 [--shift]
 
 # 기준 청크 하나의 닮은 청크와 윤작 카드
-python3 fscalc.py ref ../frontend/public/data/chunks.fake.json C01-01 [--shift] [--json]
+python3 fscalc.py ref ../frontend/public/data/chunks.json 191825000032321 [--shift] [--json]
 
 # 계산기 테스트
 python3 -m unittest -v test_fscalc
 
-# 앱 엔진과 비교 (인자 없으면 ../frontend와 chunks.fake.json)
+# 앱 엔진과 비교 (인자 없으면 ../frontend와 실데이터 chunks.json, 5분쯤 걸림)
 python3 crosscheck.py [<frontend 폴더>] [<chunks.json>]
 ```
 

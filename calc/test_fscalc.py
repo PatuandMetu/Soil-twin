@@ -68,7 +68,7 @@ def full_row(**kw) -> dict:
     return r
 
 
-FAKE = Path(__file__).resolve().parent.parent / "frontend" / "public" / "data" / "chunks.fake.json"
+REAL = Path(__file__).resolve().parent.parent / "frontend" / "public" / "data" / "chunks.json"
 
 
 class Validation(unittest.TestCase):
@@ -84,9 +84,9 @@ class Validation(unittest.TestCase):
     def test_good_row_passes(self):
         self.assertEqual(self.errs(full_row()), [])
 
-    def test_fake_table_passes(self):
-        chunks, _ = F.load(FAKE)
-        self.assertEqual(len(chunks), 60)
+    def test_real_table_passes(self):
+        chunks, _ = F.load(REAL)
+        self.assertGreater(len(chunks), 0)
 
     def test_missing_and_non_numbers(self):
         r = full_row()
@@ -355,16 +355,22 @@ class PairVerdict(unittest.TestCase):
         self.assertIsNone(F.pair_verdict(ref, with_(chunk_id="N"), shifted=False)["gate_ok"])
 
     def test_verdict_matches_find_similar(self):
-        # 상위 K·칸 상한이 걸리지 않는 크기에서는 pair 판정과 ref 결과가 같아야 한다.
-        chunks, names = F.load(FAKE)
+        # pair 판정을 통과한 청크만 고르기에 들어가고, 통과했는데 빠진 청크는 칸 상한이나 상위 K 때문이어야 한다.
+        chunks, names = F.load(REAL)
         for ref in chunks[:12]:
             for shifted in (False, True):
-                chosen = {c["chunk_id"] for c, _ in F.find_similar(ref, chunks, shifted, names)["selected"]}
-                for c in chunks:
-                    if c["chunk_id"] == ref["chunk_id"]:
-                        continue
-                    with self.subTest(ref=ref["chunk_id"], cand=c["chunk_id"], shifted=shifted):
-                        self.assertEqual(F.pair_verdict(ref, c, shifted, names)["eligible"], c["chunk_id"] in chosen)
+                with self.subTest(ref=ref["chunk_id"], shifted=shifted):
+                    sel = F.find_similar(ref, chunks, shifted, names)["selected"]
+                    chosen = {c["chunk_id"] for c, _ in sel}
+                    per_cell = {}
+                    for c, _ in sel:
+                        per_cell[c["climate_cell"]] = per_cell.get(c["climate_cell"], 0) + 1
+                    eligible = {c["chunk_id"]: c for c in chunks
+                                if c["chunk_id"] != ref["chunk_id"] and F.pair_verdict(ref, c, shifted, names)["eligible"]}
+                    self.assertLessEqual(chosen, set(eligible))
+                    for cid in set(eligible) - chosen:
+                        cut = len(sel) == F.P["top_k"] or per_cell.get(eligible[cid]["climate_cell"], 0) == F.P["cell_cap"]
+                        self.assertTrue(cut, cid)
 
 
 class Total(unittest.TestCase):

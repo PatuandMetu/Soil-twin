@@ -22,6 +22,9 @@ OUT_DIR = str(RAW_DIR)
 OUT_CSB = os.path.join(OUT_DIR, "raw_csb_sample.json")
 OUT_CROPS = os.path.join(OUT_DIR, "crops.json")
 
+PROBE_STEP = 40  # 칸당 PER_CELL개를 채울 후보를 넉넉히
+PER_CELL = 20
+
 # FIPS State code -> 2-letter postal abbreviation (CONUS)
 FIPS_TO_STATE = {
     "01": "AL", "04": "AZ", "05": "AR", "06": "CA", "08": "CO", "09": "CT",
@@ -162,8 +165,8 @@ def main():
 
     transformer = pyproj.Transformer.from_crs(crs_wkt, "EPSG:4326", always_xy=True)
 
-    # Probe every 160th FID across 15.97M rows (~99,831 rows) without geometry first
-    step = 160
+    # 전국 1,597만 행 중 PROBE_STEP번째마다 속성만 먼저 읽는다
+    step = PROBE_STEP
     probe_fids = list(range(1, total_features + 1, step))
     print(f"Probing {len(probe_fids):,} rows across the US (step={step})...")
 
@@ -265,29 +268,13 @@ def main():
     else:
         selected_cells = sorted(rich_cells)
 
-    # From each selected cell, pick up to 9 chunks with diverse crop patterns
+    # 칸마다 윤작 패턴과 상관없이 무작위로 최대 PER_CELL개를 뽑는다(칸마다 시드 고정).
+    # 패턴을 돌아가며 뽑으면 드문 윤작이 실제보다 많이 잡혀 카드 비율이 왜곡된다.
     selected_items = []
     for cid in sorted(selected_cells):
-        items = by_cell[cid]
-        # Group by pattern_key for diversity within the cell
-        by_pat = defaultdict(list)
-        for it in items:
-            by_pat[it["pattern_key"]].append(it)
-        picked = []
-        pats = sorted(by_pat.keys(), key=lambda k: (-len(by_pat[k]), k))
-        r = 0
-        while len(picked) < min(9, len(items)):
-            progressed = False
-            for p in pats:
-                if r < len(by_pat[p]):
-                    picked.append(by_pat[p][r])
-                    progressed = True
-                    if len(picked) >= 9:
-                        break
-            if not progressed:
-                break
-            r += 1
-        selected_items.extend(picked)
+        items = sorted(by_cell[cid], key=lambda it: it["chunk_id"])
+        rng = random.Random(f"fieldshift:{cid}")
+        selected_items.extend(rng.sample(items, min(PER_CELL, len(items))))
 
     print(f"Selected {len(selected_items):,} chunks across {len(selected_cells):,} climate cells.")
 

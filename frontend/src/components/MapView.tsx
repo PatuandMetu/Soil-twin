@@ -6,6 +6,7 @@ import {
   setWorkerUrl,
   type ExpressionSpecification,
   type GeoJSONSource,
+  type PaddingOptions,
   type StyleSpecification,
 } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
@@ -14,7 +15,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { CSB_MIN_ZOOM, createCsbLoader, type CsbFeature, type CsbGeometry, type CsbStatus } from '../csb'
 import { cropName, type Chunk, type CropNames, type Status } from '../engine'
 import { MAP_COLOR } from '../mapColors'
-import type { Padding } from '../panels/geometry'
+import { Legend } from '../views/Legend'
 
 // maplibre-gl v6는 워커 파일을 따로 읽는다. Vite가 내보낸 주소를 알려 준다.
 setWorkerUrl(workerUrl)
@@ -35,7 +36,7 @@ const BASE_STYLE: StyleSpecification = {
       tileSize: 256,
       maxzoom: 19,
       attribution:
-        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors · Field boundaries: USDA NASS Crop Sequence Boundaries',
+        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors · Fields: USDA NASS CSB',
     },
     satellite: {
       type: 'raster',
@@ -169,7 +170,7 @@ const CSB_STATUS_TEXT: Record<CsbStatus, string> = {
 }
 
 /** 지도를 이 범위로 옮긴다. seq가 바뀔 때마다 한 번 */
-export type MapFocus = { seq: number; bounds: [[number, number], [number, number]]; padding: Padding }
+export type MapFocus = { seq: number; bounds: [[number, number], [number, number]]; padding: PaddingOptions }
 
 /** 지도에 번호로 표시하는 비슷한 지역 */
 export type RegionPin = { cell: string; rank: number; lat: number; lon: number }
@@ -462,8 +463,12 @@ export function MapView(props: Props) {
   return (
     <div className="map">
       <div ref={el} className="map-canvas" />
-      <div className={`map-status ${csbStatus}`} role="status">
-        {CSB_STATUS_TEXT[csbStatus]}
+      {/* 지도 칸 아래 가운데: 윤곽선 안내 위에 범례 (좁은 지도에서도 겹치지 않게 쌓는다) */}
+      <div className="map-bottom">
+        <div className={`map-status ${csbStatus}`} role="status">
+          {CSB_STATUS_TEXT[csbStatus]}
+        </div>
+        <Legend />
       </div>
     </div>
   )

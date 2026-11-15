@@ -1,39 +1,25 @@
-import { useAppState, type SideTab } from '../state'
 import { AreasView } from './AreasView'
 import { DetailView } from './DetailView'
 
-export const DOCK_WIDTH = 420
-export const DOCK_TOP = 68 // 도구줄 아래
-export const DOCK_BOTTOM = 52 // 지도 출처 표시 자리 위
-export const DOCK_GAP = 12
-
-const TABS: { id: SideTab; label: string }[] = [
-  { id: 'info', label: 'Land Info' },
-  { id: 'detail', label: 'Detail' },
-]
-
-/** 오른쪽 고정 탭 패널 (Land Info · Detail) */
-export function SideDock() {
-  const { tab, actions } = useAppState()
+/**
+ * 화면 3분할의 오른쪽 두 칸: Land Info | Detail. 둘 다 위아래를 채우고 각자 스크롤한다.
+ * 너비는 CSS --info-w, --detail-w (지도:Info:Detail ≈ 2:1:1, 최소 폭 있음)
+ */
+export function SideColumns() {
   return (
-    <aside className="side-dock" aria-label="Field analysis">
-      <div className="side-tabs" role="tablist">
-        {TABS.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            role="tab"
-            aria-selected={tab === t.id}
-            className={`side-tab${tab === t.id ? ' active' : ''}`}
-            onClick={() => actions.setTab(t.id)}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
-      <div className="fp-body side-body" role="tabpanel">
-        {tab === 'info' ? <AreasView /> : <DetailView />}
-      </div>
-    </aside>
+    <div className="side-cols">
+      <section className="side-col" aria-label="Land Info">
+        <h2 className="side-head">Land Info</h2>
+        <div className="fp-body side-body">
+          <AreasView />
+        </div>
+      </section>
+      <section className="side-col" aria-label="Detail">
+        <h2 className="side-head">Detail</h2>
+        <div className="fp-body side-body">
+          <DetailView />
+        </div>
+      </section>
+    </div>
   )
 }

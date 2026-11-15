@@ -6,6 +6,10 @@
   --accent: #1f2328;
   --warn: #9a4b00;
   --bar: #4a7f5a;
+  /** 화면 3분할: 지도 | Land Info | Detail ≈ 2:1:1. 오른쪽 두 칸은 작물 띠가 들어가게 최소 폭을 둔다 */
+  --info-w: clamp(320px, 25vw, 400px);
+  --detail-w: clamp(380px, 25vw, 480px);
+  --sidebar-w: calc(var(--info-w) + var(--detail-w));
   color-scheme: light;
 }
 
@@ -32,9 +36,13 @@ button {
 }
 
 /* ---- 지도 (화면 전체) ---- */
+/* 지도는 사이드바를 뺀 왼쪽 영역 (MapLibre가 칸 크기 변화를 스스로 따라간다) */
 .map {
   position: fixed;
-  inset: 0;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  right: var(--sidebar-w);
 }
 .map-canvas {
   width: 100%;
@@ -78,7 +86,7 @@ button {
   align-items: center;
   flex-wrap: wrap;
   gap: 8px;
-  max-width: calc(100vw - 24px);
+  max-width: calc(100vw - var(--sidebar-w) - 24px);
   box-sizing: border-box;
   padding: 6px 8px;
   background: #fff;
@@ -136,7 +144,7 @@ button {
   gap: 4px;
 }
 .search input {
-  width: 300px;
+  width: 220px;
   box-sizing: border-box;
   border: 1px solid var(--line);
   border-radius: 7px;
@@ -166,52 +174,35 @@ button {
 }
 
 /* ---- 오른쪽 고정 탭 패널 ---- */
-.side-dock {
+/* 오른쪽 두 칸: 화면 가장자리에 붙고 위아래를 채운다. 칸 사이·지도와의 경계는 선 하나 */
+.side-cols {
   position: fixed;
-  top: 68px;
-  right: 12px;
-  bottom: 52px;
-  width: min(420px, calc(100vw - 24px));
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: var(--sidebar-w);
   z-index: 20;
+  display: grid;
+  grid-template-columns: var(--info-w) var(--detail-w);
+  background: #fff;
+}
+.side-col {
   display: flex;
   flex-direction: column;
-  box-sizing: border-box;
-  background: #fff;
-  border: 1px solid #c8cdd2;
-  border-radius: 10px;
-  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.18);
-  overflow: hidden;
+  min-height: 0;
+  border-left: 1px solid #c8cdd2;
 }
-.side-tabs {
+.side-head {
   flex: none;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+  margin: 0;
+  padding: 9px 12px;
+  font-size: 14px;
   background: var(--soft);
   border-bottom: 1px solid var(--line);
 }
-.side-tab {
-  border: 0;
-  border-right: 1px solid var(--line);
-  background: transparent;
-  padding: 9px 12px;
-  font-weight: 600;
-  color: var(--muted);
-  cursor: pointer;
-}
-.side-tab:last-child {
-  border-right: 0;
-}
-.side-tab:hover {
-  background: #e9ecef;
-  color: var(--ink);
-}
-.side-tab.active {
-  background: #fff;
-  color: var(--ink);
-  box-shadow: inset 0 -2px 0 var(--accent);
-}
 .side-body {
   flex: 1;
+  min-height: 0;
 }
 
 /* ---- 공용: 작은 아이콘 버튼, 패널 본문 ---- */
@@ -278,20 +269,28 @@ button {
   border-radius: 4px;
   padding: 4px 8px;
 }
-.map-status {
+.map-bottom {
   position: absolute;
   left: 50%;
-  bottom: 50px;
+  bottom: 28px;
   transform: translateX(-50%);
   z-index: 4;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  width: max-content;
+  max-width: calc(100% - 140px);
+  pointer-events: none;
+}
+.map-status {
   padding: 3px 10px;
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.92);
   border: 1px solid var(--line);
   font-size: 12px;
   color: var(--muted);
-  white-space: nowrap;
-  pointer-events: none;
+  text-align: center;
 }
 .map-status.error {
   color: #8a1c1c;
@@ -443,13 +442,13 @@ button {
   padding: 0;
 }
 .bands td.crop {
-  width: 40px;
+  width: 36px;
   height: 20px;
   text-align: center;
   border-radius: 3px;
   white-space: nowrap;
   overflow: hidden;
-  max-width: 40px;
+  max-width: 36px;
   text-overflow: clip;
 }
 .bands td.num,
@@ -480,19 +479,20 @@ button {
 
 /* ---- 지도 범례 ---- */
 .legend-box {
-  position: fixed;
-  left: 50%;
-  bottom: 12px;
-  transform: translateX(-50%);
-  z-index: 5;
   display: flex;
-  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 2px 12px;
   align-items: center;
+  max-width: 100%;
+  box-sizing: border-box;
   padding: 4px 10px;
   background: rgba(255, 255, 255, 0.92);
   border: 1px solid var(--line);
   border-radius: 8px;
   font-size: 12px;
+}
+.legend-box span {
   white-space: nowrap;
 }
 .legend-box i {

@@ -3,7 +3,6 @@ import { MapView, type MapFocus, type PickedOnMap, type RegionPin } from './comp
 import { cellIdOf, centroidOf, cropsOf, stateOfFips, type CsbFeature } from './csb'
 import { loadData } from './data'
 import { findSimilar, groupRegions, type Chunk, type CropNames, type Status } from './engine'
-import { freePadding } from './panels/geometry'
 import { geocode, inMainland, nearestSample, parseCoords } from './search'
 import {
   AppStateContext,
@@ -12,11 +11,9 @@ import {
   type AppState,
   type PickedField,
   type SearchState,
-  type SideTab,
 } from './state'
 import { km } from './text'
-import { Legend } from './views/Legend'
-import { DOCK_BOTTOM, DOCK_GAP, DOCK_TOP, DOCK_WIDTH, SideDock } from './views/panels'
+import { SideColumns } from './views/panels'
 import { Toolbar } from './views/Toolbar'
 
 type Data = { chunks: Chunk[]; crops: CropNames }
@@ -28,7 +25,6 @@ export default function App() {
   const [shifted, setShifted] = useState(false)
   const [cell, setCell] = useState<string | null>(null)
   const [compareId, setCompareId] = useState<string | null>(null)
-  const [tab, setTab] = useState<SideTab>('info')
   const [search, setSearch] = useState<SearchState>(IDLE_SEARCH)
   const [focus, setFocus] = useState<MapFocus | null>(null)
   const [picked, setPicked] = useState<PickedField | null>(null)
@@ -57,7 +53,6 @@ export default function App() {
     setCell(null)
     setCompareId(null)
     setPicked(null)
-    setTab('info')
   }, [])
   const selectChunk = useCallback(
     (id: string) => {
@@ -128,18 +123,10 @@ export default function App() {
         tone: 'info',
         place: { ...place, nearestKm: near.km },
       })
-      const vw = window.innerWidth
-      const vh = window.innerHeight
-      const dockRect = {
-        x: Math.max(0, vw - DOCK_WIDTH - DOCK_GAP),
-        y: DOCK_TOP,
-        w: DOCK_WIDTH,
-        h: Math.max(200, vh - DOCK_TOP - DOCK_BOTTOM),
-      }
-      const padding = freePadding([dockRect], vw, vh, { top: 110, bottom: 60, left: 40, right: 40 })
+      // 지도 칸에는 오른쪽 칸들이 겹치지 않는다. 위는 도구줄·검색 말풍선, 아래는 범례 자리만 비운다
       setFocus((f) => ({
         seq: (f?.seq ?? 0) + 1,
-        padding,
+        padding: { top: 150, bottom: 130, left: 40, right: 40 },
         bounds: [
           [Math.min(place.lon, near.chunk.lon), Math.min(place.lat, near.chunk.lat)],
           [Math.max(place.lon, near.chunk.lon), Math.max(place.lat, near.chunk.lat)],
@@ -151,7 +138,6 @@ export default function App() {
   const selectRegion = useCallback((c: string) => {
     setCell(c)
     setCompareId(null)
-    setTab('detail')
   }, [])
   const actions = useMemo<AppActions>(
     () => ({
@@ -163,7 +149,6 @@ export default function App() {
       setShifted,
       selectRegion,
       setCompare: setCompareId,
-      setTab,
       search: (q) => void runSearch(q),
       dismissSearch: () => setSearch((x) => ({ ...x, message: null })),
     }),
@@ -181,12 +166,11 @@ export default function App() {
         regions,
         region,
         compareId,
-        tab,
         search,
         picked,
         actions,
       },
-    [data, ref, shifted, result, regions, region, compareId, tab, search, picked, actions],
+    [data, ref, shifted, result, regions, region, compareId, search, picked, actions],
   )
 
   if (error) return <p className="status">Could not load the data: {error}</p>
@@ -209,8 +193,7 @@ export default function App() {
         place={search.place}
       />
       <Toolbar />
-      <SideDock />
-      <Legend />
+      <SideColumns />
     </AppStateContext.Provider>
   )
 }

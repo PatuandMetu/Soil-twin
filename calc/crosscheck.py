@@ -81,9 +81,12 @@ def compare(app: dict, calc: dict) -> list[str]:
     if len(app["cards"]) != len(calc["cards"]):
         diffs.append(f"카드 수: 앱 {len(app['cards'])} / 계산기 {len(calc['cards'])}")
     for i, (p, q) in enumerate(zip(app["cards"], calc["cards"])):
-        for k in ("key", "count", "total", "acres", "cell_count", "warned_count"):
+        for k in ("key", "count", "total", "cell_count", "warned_count"):
             if p[k] != q[k]:
                 diffs.append(f"카드 {i} {k}: 앱 {p[k]!r} / 계산기 {q[k]!r}")
+        # 면적 합은 더하는 순서에 따라 끝자리가 달라진다(파이썬 sum은 보정 합산). 점수와 같은 TOL로 본다.
+        if abs(p["acres"] - q["acres"]) > TOL:
+            diffs.append(f"카드 {i} 면적: 앱 {p['acres']!r} / 계산기 {q['acres']!r}")
         if abs(p["area_share"] - q["area_share"]) > TOL:
             diffs.append(f"카드 {i} 면적 비중: 앱 {p['area_share']} / 계산기 {q['area_share']}")
     return diffs

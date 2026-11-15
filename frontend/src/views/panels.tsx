@@ -4,7 +4,7 @@ import { useAppState } from '../state'
 import { AreasView } from './AreasView'
 import { DetailView } from './DetailView'
 
-const STORAGE_KEY = 'fieldshift.columns.v1'
+const STORAGE_KEY = 'magicmap.columns.v1'
 const KEY_STEP = 16
 
 /** 끈 너비를 CSS 변수로 (null이면 기본 clamp 너비). 지도 칸은 --sidebar-w를 보고 따라 줄어든다 */

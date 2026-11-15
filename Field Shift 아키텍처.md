@@ -2,12 +2,12 @@
 date: 2026-11-15
 updated: 2026-11-15
 tags: [자료, 기획]
-keywords: [NASA Space Apps, Field Shift, 아키텍처, 다이어그램, 유사도, 윤작, 청크, 테이블]
+keywords: [NASA Space Apps, Magic Map, Field Shift, 아키텍처, 다이어그램, 유사도, 윤작, 청크, 테이블]
 participants: [나, Claude, Antigravity]
 ---
-# Field Shift 아키텍처
+# Magic Map 아키텍처 (Field Shift 챌린지)
 
-Field Shift 작업 기준 문서. 백엔드 없이 프론트와 미리 만든 테이블 파일로 가고, 배포는 GitHub Pages에 데이터셋을 같이 올린다.
+앱 **Magic Map** 작업 기준 문서 (GitHub 저장소: `Soil-twin`, NASA 챌린지명: `Field Shift: Adapting Farms with NASA Data`). 백엔드 없이 프론트와 미리 만든 테이블 파일로 가고, 배포는 GitHub Pages에 데이터셋을 같이 올린다.
 
 ## 용어
 

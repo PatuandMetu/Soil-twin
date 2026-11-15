@@ -5,8 +5,8 @@ export function Toolbar() {
   const { ref, shifted, search, actions } = useAppState()
   const [q, setQ] = useState('')
   return (
-    <div className="toolbar" role="toolbar" aria-label="Field Shift">
-      <span className="brand">Field Shift</span>
+    <div className="toolbar" role="toolbar" aria-label="Magic Map">
+      <span className="brand">Magic Map</span>
       <div className="seg" role="group" aria-label="Climate">
         <button type="button" aria-pressed={!shifted} onClick={() => actions.setShifted(false)}>
           Today’s climate

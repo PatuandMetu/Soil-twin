@@ -20,10 +20,19 @@ import { Legend } from '../views/Legend'
 // maplibre-gl v6는 워커 파일을 따로 읽는다. Vite가 내보낸 주소를 알려 준다.
 setWorkerUrl(workerUrl)
 
-/** 지도 범위: 미국 본토 (서경 127°~65°, 북위 23°~51°) */
+/** 미국 본토 (표본이 없을 때 처음 보여 줄 범위) */
 const US_BOUNDS: [[number, number], [number, number]] = [
   [-127, 23],
   [-65, 51],
+]
+/**
+ * 지도를 움직일 수 있는 범위: 태평양·대서양까지 (서경 160°~40°, 북위 0°~70°).
+ * 지도 칸이 세로로 길어도 가장 멀리 축소했을 때 본토 전체(경도 약 59°)가 한 화면에 들어가는 넓이다
+ * (지도 700×900 px → 경도 77°, 580×800 px → 72°).
+ */
+const MAP_BOUNDS: [[number, number], [number, number]] = [
+  [-160, 0],
+  [-40, 70],
 ]
 
 /** 배경: 멀리서는 OpenStreetMap, 확대하면(실제 밭 윤곽선이 나오는 줌) 위성사진 (둘 다 API 키 없음) */
@@ -219,7 +228,7 @@ export function MapView(props: Props) {
       style: BASE_STYLE,
       bounds: boundsOf(chunks),
       fitBoundsOptions: { padding: 20 },
-      maxBounds: US_BOUNDS,
+      maxBounds: MAP_BOUNDS,
       // 회전·기울이기는 쓰지 않는다
       dragRotate: false,
       pitchWithRotate: false,

@@ -107,7 +107,7 @@ function RegionPopup({ region, pinned, raise }: { region: Region; pinned: boolea
           </ul>
           <p className="caveat small">Choices, not proof they worked.</p>
           <button type="button" className="pop-btn" aria-expanded={open} onClick={() => setOpen(!open)}>
-            {open ? 'Hide details' : 'Details'}
+            {open ? 'Hide comparison' : 'Comparison'}
           </button>
 
           {open && (

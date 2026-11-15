@@ -3,7 +3,7 @@ import { describeItems } from '../describe'
 import { useAppState } from '../state'
 import { WARNING_SHORT, km, pct, plural } from '../text'
 
-/** Detail 칸: 고른 지역의 항목별 유사율과 실제 값 비교. 작물은 지도 위 지역 팝업에서 본다 */
+/** Comparison 칸: 고른 지역의 항목별 유사율과 실제 값 비교. 작물은 지도 위 지역 팝업에서 본다 */
 export function DetailView() {
   const { ref, shifted, region, picked, actions } = useAppState()
   if (!ref) return null

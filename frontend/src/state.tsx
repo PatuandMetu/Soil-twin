@@ -47,7 +47,7 @@ export type AppActions = {
   selectChunk: (id: string) => void
   clearRef: () => void
   setShifted: (v: boolean) => void
-  /** 지역을 고른다: Detail 칸이 그 지역으로 바뀌고 그 핀에 작물 팝업이 붙는다 */
+  /** 지역을 고른다: Comparison 칸이 그 지역으로 바뀌고 그 핀에 작물 팝업이 붙는다 */
   selectRegion: (cell: string) => void
   /** 지역 팝업을 열고 지도를 그 핀으로 옮긴다 */
   showRegionOnMap: (cell: string) => void

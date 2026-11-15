@@ -139,7 +139,7 @@ export function regionProfile(region: Region): Profile {
   return p
 }
 
-/** Detail 패널의 항목 줄. 순서는 엔진 항목 순서 그대로(토양 → 기후) */
+/** Comparison 칸의 항목 줄. 순서는 엔진 항목 순서 그대로(토양 → 기후) */
 export function describeItems(you: Profile, region: Region): ItemRow[] {
   const there = regionProfile(region)
   const keys = region.members[0].score.items.map((it) => it.key)

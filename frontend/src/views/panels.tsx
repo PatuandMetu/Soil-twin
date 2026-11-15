@@ -38,8 +38,8 @@ function save(w: ColWidths | null) {
 type Edge = 'map' | 'middle'
 
 /**
- * 화면 3분할의 오른쪽 두 칸: Land Info | Detail. 둘 다 위아래를 채우고 각자 스크롤한다.
- * 기본 너비는 CSS --info-w, --detail-w (지도:Info:Detail ≈ 2:1:1). 칸 왼쪽 경계를 끌어 바꾸고,
+ * 화면 3분할의 오른쪽 두 칸: Land Info | Comparison. 둘 다 위아래를 채우고 각자 스크롤한다.
+ * 기본 너비는 CSS --info-w, --detail-w (지도:Info:Comparison ≈ 2:1:1). 칸 왼쪽 경계를 끌어 바꾸고,
  * 더블클릭하면 기본 너비로 돌아간다. 바꾼 너비는 저장한다.
  */
 export function SideColumns() {
@@ -135,9 +135,9 @@ export function SideColumns() {
           <AreasView />
         </div>
       </section>
-      <section className="side-col" aria-label="Detail">
-        {resizer('middle', 'Resize Land Info and Detail')}
-        <h2 className="side-head">Detail</h2>
+      <section className="side-col" aria-label="Comparison">
+        {resizer('middle', 'Resize Land Info and Comparison')}
+        <h2 className="side-head">Comparison</h2>
         <div className="fp-body side-body">
           <DetailView />
         </div>

@@ -19,6 +19,7 @@ SSURGO_AREA_FILE = os.path.join(OUT_DIR, "raw_ssurgo_area.jsonl")
 OUT_CHUNKS = str(PUBLIC_DIR / "chunks.json")
 IN_CROPS = os.path.join(OUT_DIR, "crops.json")
 OUT_CROPS = str(PUBLIC_DIR / "crops.json")
+OUT_SHAPES = str(PUBLIC_DIR / "chunks.geo.json")  # 청크 경계 (지도 윤곽선용)
 
 DRAINAGE_MAP = {
     "Excessively drained": 1.0,
@@ -57,6 +58,19 @@ NON_SOIL_KEYWORDS = (
     "glacier",
     "chute",
 )
+
+
+def wkt_polygon_to_rings(wkt: str) -> list:
+    """1단계가 저장한 'POLYGON ((x y, ...), (x y, ...))'를 GeoJSON 좌표 배열로 바꾼다. 첫 고리가 바깥, 나머지는 구멍."""
+    body = wkt.strip()
+    assert body.upper().startswith("POLYGON"), body[:20]
+    body = body[body.index("(") + 1: body.rindex(")")].strip()
+    rings = []
+    for part in body.split("),"):
+        part = part.strip().lstrip("(").rstrip(")")
+        ring = [[float(v) for v in xy.split()] for xy in part.split(",") if xy.strip()]
+        rings.append(ring)
+    return rings
 
 
 def safe_float(val):
@@ -527,6 +541,22 @@ def main():
         json.dump(table, f, indent=2)
 
     shutil.copyfile(IN_CROPS, OUT_CROPS)
+
+    # 테이블에 들어간 청크의 경계만 GeoJSON으로 (1단계에서 가장 큰 조각만 남기고 약 5 m로 단순화한 것)
+    wkt_by_id = {x["chunk_id"]: x.get("wkt") for x in samples}
+    features = []
+    for row in table:
+        wkt = wkt_by_id.get(row["chunk_id"])
+        if not wkt:
+            continue
+        features.append({
+            "type": "Feature",
+            "properties": {"chunk_id": row["chunk_id"]},
+            "geometry": {"type": "Polygon", "coordinates": wkt_polygon_to_rings(wkt)},
+        })
+    with open(OUT_SHAPES, "w", encoding="utf-8") as f:
+        json.dump({"type": "FeatureCollection", "features": features}, f, separators=(",", ":"))
+    print(f"Wrote {len(features):,} chunk outlines -> {OUT_SHAPES} ({os.path.getsize(OUT_SHAPES) / (1024 * 1024):.2f} MB)")
 
     size_mb = os.path.getsize(OUT_CHUNKS) / (1024 * 1024)
     print(f"Built {len(table):,} valid chunks -> {OUT_CHUNKS} ({size_mb:.2f} MB)")

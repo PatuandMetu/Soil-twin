@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
+import { cellIdOf } from './csb'
 import type { Chunk } from './engine'
-import { inMainland, nearestChunk, parseCoords, shortPlaceName } from './search'
+import { inMainland, nearestChunk, nearestSample, parseCoords, shortPlaceName } from './search'
 
 describe('내 밭 검색', () => {
   it('좌표 읽기: 쉼표나 띄어쓰기, 범위 밖은 null', () => {
@@ -23,6 +24,26 @@ describe('내 밭 검색', () => {
     expect(r?.chunk.chunk_id).toBe('near')
     expect(r?.km).toBeCloseTo((0.07 * Math.PI * 6371) / 180, 6)
     expect(nearestChunk([], { lat: 0, lon: 0 })).toBeNull()
+  })
+
+  it('같은 기후 칸 표본을 우선한다', () => {
+    const point = { lat: 42.03, lon: -93.62 }
+    const sameCellId = cellIdOf(point.lat, point.lon)
+    const c = (id: string, lat: number, lon: number, climate_cell: string) =>
+      ({ chunk_id: id, lat, lon, climate_cell }) as Chunk
+    const closerOtherCell = c('other-near', 42.04, -93.62, 'C_+41.50_-093.750')
+    const fartherSameCell = c('same-far', 42.2, -93.62, sameCellId)
+    const evenFartherSameCell = c('same-very-far', 42.4, -93.62, sameCellId)
+
+    const hit = nearestSample([closerOtherCell, evenFartherSameCell, fartherSameCell], point)
+    expect(hit?.chunk.chunk_id).toBe('same-far')
+    expect(hit?.sameCell).toBe(true)
+
+    const fallback = nearestSample([closerOtherCell, c('other-far', 45, -93, 'C_+45.00_-093.125')], point)
+    expect(fallback?.chunk.chunk_id).toBe('other-near')
+    expect(fallback?.sameCell).toBe(false)
+
+    expect(nearestSample([], point)).toBeNull()
   })
 
   it('지명 줄이기', () => {

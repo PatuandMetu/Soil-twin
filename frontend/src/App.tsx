@@ -4,7 +4,7 @@ import { cellIdOf, centroidOf, cropsOf, stateOfFips, type CsbFeature } from './c
 import { loadData } from './data'
 import { findSimilar, groupRegions, type Chunk, type CropNames, type Status } from './engine'
 import { PanelHost } from './panels/PanelHost'
-import { geocode, inMainland, nearestChunk, parseCoords } from './search'
+import { geocode, inMainland, nearestSample, parseCoords } from './search'
 import { usePanels } from './panels/context'
 import { freePadding } from './panels/geometry'
 import { AppStateContext, IDLE_SEARCH, type AppActions, type AppState, type PickedField, type SearchState } from './state'
@@ -77,7 +77,7 @@ export default function App() {
     (f: CsbFeature) => {
       if (!data) return
       const c = centroidOf(f.geometry)
-      const near = nearestChunk(data.chunks, c)
+      const near = nearestSample(data.chunks, c)
       if (!near) return
       const cell = cellIdOf(c.lat, c.lon)
       pick(near.chunk.chunk_id)
@@ -93,7 +93,7 @@ export default function App() {
         cell,
         sampleId: near.chunk.chunk_id,
         sampleKm: near.km,
-        sameCell: near.chunk.climate_cell === cell,
+        sameCell: near.sameCell,
       })
     },
     [data, pick],
@@ -124,7 +124,7 @@ export default function App() {
         }
       }
       if (!inMainland(place)) return fail('That point is outside the continental U.S.')
-      const near = nearestChunk(chunks, place)
+      const near = nearestSample(chunks, place)
       if (!near) return fail('No sample fields loaded.')
       pick(near.chunk.chunk_id)
       setSearch({

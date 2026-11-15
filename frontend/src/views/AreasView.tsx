@@ -39,9 +39,11 @@ export function AreasView() {
           </p>
           <CodesBand years={CSB_YEARS} codes={picked.crops} crops={crops} />
           <p className={picked.sameCell ? 'note' : 'warn-box'}>
-            Analysis uses the nearest sample field, {km(picked.sampleKm)} away.
-            {!picked.sameCell && (
+            {picked.sameCell ? (
+              <>Analysis uses the nearest sample field in your climate area, {km(picked.sampleKm)} away.</>
+            ) : (
               <>
+                Analysis uses the nearest sample field, {km(picked.sampleKm)} away.
                 <br />
                 <b>No sample field in this climate area — results are less reliable.</b>
               </>

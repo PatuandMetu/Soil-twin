@@ -1,3 +1,4 @@
+import { cellIdOf } from './csb'
 import { distanceKm, type Chunk } from './engine'
 
 export type LatLon = { lat: number; lon: number }
@@ -25,6 +26,21 @@ export function nearestChunk(chunks: Chunk[], p: LatLon): { chunk: Chunk; km: nu
     if (!best || d < best.km) best = { chunk: c, km: d }
   }
   return best
+}
+
+/** 같은 기후 칸 표본이 있으면 그중 가장 가까운 것, 없으면 전체에서 가장 가까운 것 */
+export function nearestSample(
+  chunks: Chunk[],
+  point: LatLon,
+): { chunk: Chunk; km: number; sameCell: boolean } | null {
+  const cell = cellIdOf(point.lat, point.lon)
+  const inCell = nearestChunk(
+    chunks.filter((c) => c.climate_cell === cell),
+    point,
+  )
+  if (inCell) return { ...inCell, sameCell: true }
+  const any = nearestChunk(chunks, point)
+  return any ? { ...any, sameCell: false } : null
 }
 
 /** "Ames, Story County, Iowa, 50010, United States" → "Ames, Iowa" */

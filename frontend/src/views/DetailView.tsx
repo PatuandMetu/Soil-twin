@@ -2,8 +2,9 @@ import { profileOf, type Block, type Warning } from '../engine'
 import { describeItems } from '../describe'
 import { useAppState } from '../state'
 import { WARNING_SHORT, km, pct, plural } from '../text'
+import { CropsSection } from './CropsSection'
 
-/** 고른 지역의 항목별 유사율과 실제 값 비교 */
+/** Detail 탭: 고른 지역의 항목별 유사율과 실제 값 비교(위) + 그 지역의 작물(아래). 한 번에 스크롤 */
 export function DetailView() {
   const { ref, shifted, region, picked } = useAppState()
   if (!ref) return <p className="empty">Pick your field first.</p>
@@ -21,6 +22,7 @@ export function DetailView() {
         <span className="rank">{region.rank}</span> <b>{pct(region.similarity)} similar</b> · {region.states.join('/')} ·{' '}
         {km(region.distanceKm)} {region.direction} of your field · {plural(n, 'field')}
       </p>
+      <h3 className="section">How this area compares</h3>
       <p className="muted">
         Each score is the median over the {plural(n, 'field')} here{n > 1 ? ' (soil also shows the range)' : ''}. “There”
         soil values are medians too. Climate comes from one ~50 km grid cell, so it is the same for every field in an area.
@@ -68,6 +70,9 @@ export function DetailView() {
         </section>
       ))}
       <p className="muted">Temperature and rainfall scores compare all 12 months (Apr–Sep count double); the lines show Apr–Sep.</p>
+
+      <h3 className="section">Crops in this area</h3>
+      <CropsSection />
     </>
   )
 }

@@ -299,6 +299,12 @@ button {
 }
 
 /* ---- 패널 내용 ---- */
+.fp-body h3.section {
+  margin-top: 18px;
+  padding-top: 10px;
+  border-top: 2px solid var(--line);
+  font-size: 15px;
+}
 .fp-body h3 {
   font-size: 14px;
   margin: 10px 0 6px;

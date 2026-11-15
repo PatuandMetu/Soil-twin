@@ -6,15 +6,16 @@ import { CodesBand, CropCells, YearHeads } from './CropBand'
 
 const shortId = (id: string) => `…${id.slice(-6)}`
 
-/** 고른 지역 밭들의 작물 띠, 윤작 요약, 밭 하나와 내 밭 비교 */
-export function CropsView() {
+/**
+ * Detail 탭 아래쪽: 고른 지역 밭들의 작물 띠, 윤작 요약, 밭 하나와 내 밭 비교.
+ * 비교 대상은 compareId, 없거나 다른 지역 밭이면 그 지역 1위 밭.
+ */
+export function CropsSection() {
   const { ref, crops, region, compareId, picked, actions } = useAppState()
-  if (!ref) return <p className="empty">Pick your field first.</p>
-  if (!region) return <p className="empty">No similar area to show.</p>
+  if (!ref || !region) return null
 
   const summary = summarizeRotations(ref, region.members, crops)
   const pick = region.members.find((s) => s.chunk.chunk_id === compareId) ?? region.members[0]
-  const n = region.members.length
   // 지도에서 실제 밭을 골랐으면 "내 윤작"은 그 밭(2017~2024)으로 본다. 표본 행은 "Sample"
   const yourKey = picked
     ? patternKey(Object.fromEntries(CROP_KEYS.map((k, i) => [k, picked.crops[i]])) as unknown as Chunk, crops)
@@ -23,10 +24,6 @@ export function CropsView() {
 
   return (
     <>
-      <p className="head">
-        <span className="rank">{region.rank}</span> Area {region.rank} · {region.states.join('/')} · {plural(n, 'field')}
-      </p>
-
       {picked && (
         <>
           <h4>Your field, 2017–2024</h4>

@@ -1,18 +1,13 @@
-import { MapLibreMap, NavigationControl, Popup, setWorkerUrl, type GeoJSONSource, type StyleSpecification } from 'maplibre-gl'
+import { MapLibreMap, Marker, NavigationControl, Popup, setWorkerUrl, type GeoJSONSource, type StyleSpecification } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url'
 import { useEffect, useMemo, useRef } from 'react'
 import type { Chunk, Status } from '../engine'
+import { MAP_COLOR } from '../mapColors'
 
 // maplibre-gl v6는 워커 파일을 따로 읽는다. Vite가 내보낸 주소를 알려 준다.
 setWorkerUrl(workerUrl)
 
-const COLOR = {
-  ref: '#d62728',
-  twin: '#2ca02c',
-  constrained: '#ff7f0e',
-  other: '#888888',
-}
 
 /** 지도 범위: 미국 본토 (서경 127°~65°, 북위 23°~51°) */
 const US_BOUNDS: [[number, number], [number, number]] = [
@@ -58,7 +53,7 @@ const pointOf = (c: Chunk, role?: Role): ChunkPoint => ({
 })
 
 /** 기준 청크와 닮은 청크만. 닮은 청크는 청크 순서대로, 기준 청크는 맨 끝 */
-function markedOf(chunks: Chunk[], refId: string, similar: Map<string, Status>): Points {
+function markedOf(chunks: Chunk[], refId: string | null, similar: Map<string, Status>): Points {
   const features: ChunkPoint[] = []
   let ref: Chunk | undefined
   for (const c of chunks) {
@@ -92,21 +87,30 @@ function boundsOf(chunks: Chunk[]): [[number, number], [number, number]] {
 
 const STROKE = { 'circle-stroke-color': '#333', 'circle-stroke-width': 1, 'circle-opacity': 0.9 }
 
+/** 지도에 번호로 표시하는 비슷한 지역 */
+export type RegionPin = { cell: string; rank: number; lat: number; lon: number }
+
 type Props = {
   chunks: Chunk[]
-  refId: string
+  /** 기준 청크 (고르기 전이면 null) */
+  refId: string | null
   /** 닮은 청크의 상태 (twin / constrained) */
   similar: Map<string, Status>
+  regions: RegionPin[]
+  activeCell: string | null
   onSelect: (id: string) => void
+  onSelectRegion: (cell: string) => void
 }
 
-export function MapView({ chunks, refId, similar, onSelect }: Props) {
+export function MapView({ chunks, refId, similar, regions, activeCell, onSelect, onSelectRegion }: Props) {
   const el = useRef<HTMLDivElement>(null)
   const mapRef = useRef<MapLibreMap | null>(null)
   const onSelectRef = useRef(onSelect)
+  const onSelectRegionRef = useRef(onSelectRegion)
   useEffect(() => {
     onSelectRef.current = onSelect
-  }, [onSelect])
+    onSelectRegionRef.current = onSelectRegion
+  }, [onSelect, onSelectRegion])
 
   const marked = useMemo(() => markedOf(chunks, refId, similar), [chunks, refId, similar])
   const markedRef = useRef(marked)
@@ -124,10 +128,11 @@ export function MapView({ chunks, refId, similar, onSelect }: Props) {
       pitchWithRotate: false,
       touchPitch: false,
       rollEnabled: false,
+      attributionControl: { compact: false },
     })
     map.touchZoomRotate.disableRotation()
     map.keyboard.disableRotation()
-    map.addControl(new NavigationControl({ showCompass: false }), 'top-left')
+    map.addControl(new NavigationControl({ showCompass: false }), 'bottom-left')
     const tip = new Popup({ closeButton: false, closeOnClick: false, offset: 10, className: 'chunk-tip' })
     const byId = new Map(chunks.map((c) => [c.chunk_id, c]))
 
@@ -138,7 +143,7 @@ export function MapView({ chunks, refId, similar, onSelect }: Props) {
         id: LAYER.all,
         type: 'circle',
         source: ALL,
-        paint: { 'circle-radius': 5, 'circle-color': COLOR.other, ...STROKE },
+        paint: { 'circle-radius': 5, 'circle-color': MAP_COLOR.other, ...STROKE },
       })
       map.addLayer({
         id: LAYER.similar,
@@ -147,7 +152,7 @@ export function MapView({ chunks, refId, similar, onSelect }: Props) {
         filter: ['!=', ['get', 'role'], 'ref'],
         paint: {
           'circle-radius': 7,
-          'circle-color': ['match', ['get', 'role'], 'twin', COLOR.twin, COLOR.constrained],
+          'circle-color': ['match', ['get', 'role'], 'twin', MAP_COLOR.twin, MAP_COLOR.constrained],
           ...STROKE,
         },
       })
@@ -157,7 +162,7 @@ export function MapView({ chunks, refId, similar, onSelect }: Props) {
         type: 'circle',
         source: MARKED,
         filter: ['==', ['get', 'role'], 'ref'],
-        paint: { 'circle-radius': 9, 'circle-color': COLOR.ref, ...STROKE },
+        paint: { 'circle-radius': 9, 'circle-color': MAP_COLOR.ref, ...STROKE },
       })
 
       const topChunk = (point: { x: number; y: number }) => {
@@ -167,7 +172,7 @@ export function MapView({ chunks, refId, similar, onSelect }: Props) {
       map.on('mousemove', (e) => {
         const c = topChunk(e.point)
         map.getCanvas().style.cursor = c ? 'pointer' : ''
-        if (c) tip.setLngLat([c.lon, c.lat]).setText(`${c.chunk_id} (${c.climate_cell})`).addTo(map)
+        if (c) tip.setLngLat([c.lon, c.lat]).setText(`Sample field ${c.chunk_id} · ${c.state}`).addTo(map)
         else tip.remove()
       })
       map.on('mouseout', () => {
@@ -194,13 +199,30 @@ export function MapView({ chunks, refId, similar, onSelect }: Props) {
     void mapRef.current?.getSource<GeoJSONSource>(MARKED)?.setData(marked)
   }, [marked])
 
+  // 비슷한 지역 번호 (최대 30개라 DOM 표시로). 누르면 그 지역을 고른다
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map) return
+    const pins = regions.map((r) => {
+      const b = document.createElement('button')
+      b.type = 'button'
+      b.className = `region-pin${r.cell === activeCell ? ' active' : ''}`
+      b.textContent = String(r.rank)
+      b.title = `Similar area ${r.rank}`
+      b.setAttribute('aria-label', `Similar area ${r.rank}`)
+      b.addEventListener('click', (e) => {
+        e.stopPropagation()
+        onSelectRegionRef.current(r.cell)
+      })
+      return new Marker({ element: b }).setLngLat([r.lon, r.lat]).addTo(map)
+    })
+    return () => pins.forEach((m) => m.remove())
+  }, [regions, activeCell, chunks])
+
+  // MapLibre CSS가 지도 칸을 position: relative로 바꾸므로, 화면 전체 고정은 바깥 칸이 맡는다
   return (
-    <div>
-      <div ref={el} style={{ height: 420 }} />
-      <div className="legend">
-        <span style={{ color: COLOR.ref }}>● 기준 청크</span> <span style={{ color: COLOR.twin }}>● twin</span>{' '}
-        <span style={{ color: COLOR.constrained }}>● constrained</span> <span style={{ color: COLOR.other }}>● 그 외</span>
-      </div>
+    <div className="map">
+      <div ref={el} className="map-canvas" />
     </div>
   )
 }

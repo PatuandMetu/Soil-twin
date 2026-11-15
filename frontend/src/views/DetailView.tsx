@@ -39,7 +39,7 @@ export function DetailView() {
       )}
       {(['soil', 'climate'] as Block[]).map((block) => (
         <section key={block} className="items">
-          <h4>{block === 'soil' ? 'Soil and land' : shifted ? 'Climate (yours: warmer scenario)' : 'Climate'}</h4>
+          <h4>{block === 'soil' ? 'Soil and land' : shifted ? 'Climate (yours: 2035–2050)' : 'Climate'}</h4>
           {rows
             .filter((r) => r.block === block)
             .map((r) => (

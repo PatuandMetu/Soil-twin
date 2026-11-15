@@ -25,6 +25,14 @@ export function AreasView() {
 
   const now = profileOf(ref)
   const warm = profileOf(ref, true)
+  const nowTemp = growingTemp(now)
+  const warmTemp = growingTemp(warm)
+  const nowRain = growingRain(now)
+  const warmRain = growingRain(warm)
+  const dt = warmTemp - nowTemp
+  const signedDeltaT = `${dt >= 0 ? '+' : ''}${dt.toFixed(1)} °C`
+  const dpPct = nowRain > 0 ? Math.round(((warmRain - nowRain) / nowRain) * 100) : 0
+  const signedDeltaPct = `${dpPct >= 0 ? '+' : ''}${dpPct}%`
   const nFields = result.similar.length
 
   return (
@@ -63,18 +71,18 @@ export function AreasView() {
       )}
       <CropBand chunk={ref} crops={crops} />
       <p className="kv">
-        Apr–Sep: {growingTemp(now).toFixed(1)} °C average, {Math.round(growingRain(now))} mm rain
+        Apr–Sep: {nowTemp.toFixed(1)} °C average, {Math.round(nowRain)} mm rain
         {shifted && (
           <>
             <br />
-            Warmer scenario: {growingTemp(warm).toFixed(1)} °C, {Math.round(growingRain(warm))} mm
+            Near-future (2035–2050): {warmTemp.toFixed(1)} °C ({signedDeltaT}), {Math.round(warmRain)} mm ({signedDeltaPct})
           </>
         )}
       </p>
       <p className="kv">Soil: {soilSummary(now)}</p>
 
       <h3>Similar areas</h3>
-      {shifted && <p className="muted">Places whose climate today is like your field’s warmer climate.</p>}
+      {shifted && <p className="muted">Places whose climate today is like your field in 2035–2050 (SSP2-4.5).</p>}
       {result.noneFound ? (
         <p className="none">
           No sample field is similar enough (overall 80+ and soil 65+

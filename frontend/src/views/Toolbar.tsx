@@ -15,7 +15,7 @@ export function Toolbar() {
           Today’s climate
         </button>
         <button type="button" aria-pressed={shifted} onClick={() => actions.setShifted(true)}>
-          Warmer: +2.2 °C, 15% less summer rain
+          Near-future (2035–2050)
         </button>
       </div>
       <div className="seg" role="group" aria-label="Panels">

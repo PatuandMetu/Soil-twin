@@ -135,6 +135,7 @@ export default function App() {
       selectRegion,
       setCompare: setCompareId,
       search: (q) => void runSearch(q),
+      dismissSearch: () => setSearch((x) => ({ ...x, message: null })),
     }),
     [pick, selectChunk, selectRegion, runSearch],
   )

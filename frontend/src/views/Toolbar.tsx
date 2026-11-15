@@ -52,6 +52,9 @@ export function Toolbar() {
           <div className={`search-msg ${search.tone}`} role="status">
             {search.message}
             {search.place && <span className="muted"> from {search.place.label}</span>}
+            <button type="button" className="fp-btn" aria-label="Dismiss" title="Dismiss" onClick={actions.dismissSearch}>
+              ✕
+            </button>
           </div>
         )}
       </form>

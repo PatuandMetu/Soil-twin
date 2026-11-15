@@ -20,6 +20,8 @@ export type AppActions = {
   selectRegion: (cell: string) => void
   setCompare: (id: string) => void
   search: (query: string) => void
+  /** 검색 결과 말풍선만 닫는다 (찾은 자리와 거리는 Areas에 남는다) */
+  dismissSearch: () => void
 }
 
 export type AppState = {

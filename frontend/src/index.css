@@ -214,39 +214,7 @@ button {
   flex: 1;
 }
 
-/* ---- 떠 있는 패널 ---- */
-.fp {
-  position: fixed;
-  display: flex;
-  flex-direction: column;
-  box-sizing: border-box;
-  background: #fff;
-  border: 1px solid #c8cdd2;
-  border-radius: 10px;
-  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.18);
-  overflow: hidden;
-}
-.fp-title {
-  flex: none;
-  height: 34px;
-  box-sizing: border-box;
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  padding: 0 10px 0 12px;
-  background: var(--soft);
-  border-bottom: 1px solid var(--line);
-  cursor: move;
-  user-select: none;
-  touch-action: none;
-}
-.fp-collapsed .fp-title {
-  border-bottom: 0;
-}
-.fp-name {
-  flex: 1;
-  font-weight: 600;
-}
+/* ---- 공용: 작은 아이콘 버튼, 패널 본문 ---- */
 .fp-btn {
   width: 26px;
   height: 26px;
@@ -264,38 +232,6 @@ button {
   flex: 1;
   overflow: auto;
   padding: 8px 12px 14px;
-}
-.fp-grip {
-  position: absolute;
-  width: 14px;
-  height: 14px;
-  touch-action: none;
-}
-.fp-grip-nw,
-.fp-grip-ne {
-  width: 8px;
-  height: 8px;
-}
-.fp-grip-nw {
-  left: 0;
-  top: 0;
-  cursor: nwse-resize;
-}
-.fp-grip-ne {
-  right: 0;
-  top: 0;
-  cursor: nesw-resize;
-}
-.fp-grip-sw {
-  left: 0;
-  bottom: 0;
-  cursor: nesw-resize;
-}
-.fp-grip-se {
-  right: 0;
-  bottom: 0;
-  cursor: nwse-resize;
-  background: linear-gradient(135deg, transparent 55%, #b5bcc3 55%, #b5bcc3 62%, transparent 62%, transparent 75%, #b5bcc3 75%, #b5bcc3 82%, transparent 82%);
 }
 
 /* ---- 패널 내용 ---- */

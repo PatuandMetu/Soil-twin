@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react'
-import { dragMapEdge, dragMiddleEdge, fitColumns, parseColumns, type ColWidths } from '../columns'
+import { dragDetailMapEdge, dragMapEdge, dragMiddleEdge, fitColumns, parseColumns, type ColWidths } from '../columns'
+import { useAppState } from '../state'
 import { AreasView } from './AreasView'
 import { DetailView } from './DetailView'
 
@@ -35,19 +36,45 @@ function save(w: ColWidths | null) {
   }
 }
 
-type Edge = 'map' | 'middle'
+type Edge = 'map' | 'middle' | 'detail-map'
+
+const defaultInfoW = () => Math.min(400, Math.max(320, Math.round(window.innerWidth * 0.25)))
+const defaultDetailW = () => Math.min(480, Math.max(380, Math.round(window.innerWidth * 0.25)))
 
 /**
  * 화면 3분할의 오른쪽 두 칸: Land Info | Comparison. 둘 다 위아래를 채우고 각자 스크롤한다.
  * 기본 너비는 CSS --info-w, --detail-w (지도:Info:Comparison ≈ 2:1:1). 칸 왼쪽 경계를 끌어 바꾸고,
  * 더블클릭하면 기본 너비로 돌아간다. 바꾼 너비는 저장한다.
+ * Land Info는 오른쪽 가장자리로 접고 펼칠 수 있고, Comparison은 ✕로 닫고 지역을 고르거나 버튼으로 다시 연다.
  */
 export function SideColumns() {
+  const { regionPopups } = useAppState()
   const root = useRef<HTMLDivElement>(null)
+  const infoCol = useRef<HTMLElement>(null)
+  const detailCol = useRef<HTMLElement>(null)
   const [widths, setWidths] = useState<ColWidths | null>(load)
   const [dragging, setDragging] = useState<Edge | null>(null)
+  const [infoCollapsed, setInfoCollapsed] = useState(false)
+  const [detailOpen, setDetailOpen] = useState(true)
+
+  // 지역(목록·지도 핀)을 고르면 닫혀 있던 Comparison을 다시 연다
+  const raisedSeq = regionPopups.raised?.seq
+  const [prevRaisedSeq, setPrevRaisedSeq] = useState(raisedSeq)
+  if (raisedSeq !== prevRaisedSeq) {
+    setPrevRaisedSeq(raisedSeq)
+    if (raisedSeq !== undefined && !detailOpen) setDetailOpen(true)
+  }
 
   useLayoutEffect(() => applyWidths(widths), [widths])
+
+  useLayoutEffect(() => {
+    const cl = document.documentElement.classList
+    cl.toggle('info-collapsed', infoCollapsed)
+    cl.toggle('detail-closed', !detailOpen)
+    return () => {
+      cl.remove('info-collapsed', 'detail-closed')
+    }
+  }, [infoCollapsed, detailOpen])
 
   // 창이 좁아지면 지도 최소 폭을 지키게 줄인다
   useEffect(() => {
@@ -61,13 +88,17 @@ export function SideColumns() {
     return () => window.removeEventListener('resize', onResize)
   }, [widths])
 
-  /** 지금 화면에 그려진 너비 (기본 clamp 너비일 때도) */
-  const current = (): ColWidths => {
-    const cols = root.current!.querySelectorAll<HTMLElement>('.side-col')
-    return { info: cols[0].getBoundingClientRect().width, detail: cols[1].getBoundingClientRect().width }
-  }
+  /** 지금 화면에 그려진 너비 (접히거나 닫힌 칸은 저장값 또는 기본 너비) */
+  const current = (): ColWidths => ({
+    info: infoCol.current ? infoCol.current.getBoundingClientRect().width : (widths?.info ?? defaultInfoW()),
+    detail: detailCol.current ? detailCol.current.getBoundingClientRect().width : (widths?.detail ?? defaultDetailW()),
+  })
   const next = (edge: Edge, start: ColWidths, dx: number) =>
-    edge === 'map' ? dragMapEdge(start, dx, window.innerWidth) : dragMiddleEdge(start, dx)
+    edge === 'map'
+      ? dragMapEdge(start, dx, window.innerWidth)
+      : edge === 'detail-map'
+        ? dragDetailMapEdge(start, dx, window.innerWidth)
+        : dragMiddleEdge(start, dx)
   const commit = (w: ColWidths) => {
     const r = { info: Math.round(w.info), detail: Math.round(w.detail) }
     setWidths(r)
@@ -128,20 +159,71 @@ export function SideColumns() {
 
   return (
     <div ref={root} className={`side-cols${dragging ? ' resizing' : ''}`}>
-      <section className="side-col" aria-label="Land Info">
-        {resizer('map', 'Resize map and Land Info')}
-        <h2 className="side-head">Land Info</h2>
-        <div className="fp-body side-body">
-          <AreasView />
-        </div>
-      </section>
-      <section className="side-col" aria-label="Comparison">
-        {resizer('middle', 'Resize Land Info and Comparison')}
-        <h2 className="side-head">Comparison</h2>
-        <div className="fp-body side-body">
-          <DetailView />
-        </div>
-      </section>
+      {infoCollapsed && (
+        <button
+          type="button"
+          className="side-fold-tab"
+          aria-expanded={false}
+          aria-label="Expand Land Info"
+          title="Expand Land Info"
+          onClick={() => setInfoCollapsed(false)}
+        >
+          ◂ Land Info
+        </button>
+      )}
+      {!infoCollapsed && (
+        <section ref={infoCol} className="side-col info-col" aria-label="Land Info">
+          {resizer('map', 'Resize map and Land Info')}
+          <div className="side-head">
+            <h2 className="side-title">Land Info</h2>
+            {!detailOpen && (
+              <button
+                type="button"
+                className="pop-btn"
+                onClick={() => setDetailOpen(true)}
+                title="Open Comparison"
+              >
+                Comparison
+              </button>
+            )}
+            <button
+              type="button"
+              className="fp-btn"
+              aria-expanded={true}
+              aria-label="Collapse Land Info"
+              title="Collapse Land Info"
+              onClick={() => setInfoCollapsed(true)}
+            >
+              ▸
+            </button>
+          </div>
+          <div className="fp-body side-body">
+            <AreasView />
+          </div>
+        </section>
+      )}
+      {detailOpen && (
+        <section ref={detailCol} className="side-col detail-col" aria-label="Comparison">
+          {infoCollapsed
+            ? resizer('detail-map', 'Resize map and Comparison')
+            : resizer('middle', 'Resize Land Info and Comparison')}
+          <div className="side-head">
+            <h2 className="side-title">Comparison</h2>
+            <button
+              type="button"
+              className="fp-btn"
+              aria-label="Close Comparison"
+              title="Close Comparison"
+              onClick={() => setDetailOpen(false)}
+            >
+              ✕
+            </button>
+          </div>
+          <div className="fp-body side-body">
+            <DetailView />
+          </div>
+        </section>
+      )}
     </div>
   )
 }

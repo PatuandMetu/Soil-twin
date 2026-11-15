@@ -4,6 +4,7 @@ import { CLIMATE_KEYS, CROP_KEYS, findSimilar, groupRegions, type Chunk, type Cr
 import { AppStateContext, IDLE_SEARCH, NO_REGION_POPUPS, type AppActions, type AppState, type PickedField } from '../state'
 import { AreasView } from './AreasView'
 import { DetailView } from './DetailView'
+import { SideColumns } from './panels'
 
 const CROPS: CropNames = { '1': 'Corn', '5': 'Soybeans' }
 
@@ -165,5 +166,15 @@ describe('표본 밭 거리·기후 칸 안내', () => {
     )
     expect(farHtml).toContain(SOIL_NOTE)
     expect(farHtml).toContain('It is in a different climate area, so results are less reliable.')
+  })
+
+  it('SideColumns: Land Info 접기 버튼과 Comparison 닫기 버튼을 함께 그린다', () => {
+    const html = renderToStaticMarkup(
+      <AppStateContext.Provider value={makeState()}>
+        <SideColumns />
+      </AppStateContext.Provider>,
+    )
+    expect(html).toContain('aria-label="Collapse Land Info"')
+    expect(html).toContain('aria-label="Close Comparison"')
   })
 })

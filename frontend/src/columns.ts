@@ -12,6 +12,11 @@ export function dragMapEdge(start: ColWidths, dx: number, vw: number): ColWidths
   return { ...start, info: clamp(start.info - dx, COL_MIN.info, vw - start.detail - COL_MIN.map) }
 }
 
+/** Land Info가 접혔을 때 지도|Comparison 경계를 dx만큼 끌었을 때: 왼쪽으로 끌면 Comparison이 넓어진다 */
+export function dragDetailMapEdge(start: ColWidths, dx: number, vw: number): ColWidths {
+  return { ...start, detail: clamp(start.detail - dx, COL_MIN.detail, vw - start.info - COL_MIN.map) }
+}
+
 /** Info|Comparison 경계를 dx만큼 끌었을 때: 두 칸 합은 그대로, 지도도 그대로 */
 export function dragMiddleEdge(start: ColWidths, dx: number): ColWidths {
   const total = start.info + start.detail

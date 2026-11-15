@@ -55,7 +55,7 @@ BASE_PATH=/Soil-twin/ npm run build
 - **USDA NASS Crop Sequence Boundaries (CSB)** — `NationalCSB_2018-2025_rev23` (pre-sampled crops/boundaries) and **CSB 2024** ArcGIS FeatureServer (`https://pdi.scinet.usda.gov/`). Public domain U.S. Government dataset.
 - **USDA NASS Cropland Data Layer (CDL)** — Crop classification codes and names. Public domain U.S. Government dataset.
 - **OpenStreetMap & Nominatim** — Standard raster basemap tiles (`https://tile.openstreetmap.org/`) and geocoding (`https://nominatim.openstreetmap.org/`), © OpenStreetMap contributors.
-- **Esri World Imagery** — High-zoom satellite basemap tiles (`https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/`), Imagery © Esri, Maxar, Earthstar Geographics, USDA FSA.
+- **USGS The National Map (`USGSImageryOnly`)** — High-zoom orthoimagery basemap tiles (`https://basemap.nationalmap.gov/arcgis/rest/services/USGSImageryOnly/MapServer/tile/{z}/{y}/{x}`), U.S. Geological Survey. Public domain U.S. Government dataset.
 
 ---
 

@@ -50,10 +50,10 @@ const BASE_STYLE: StyleSpecification = {
     },
     satellite: {
       type: 'raster',
-      tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],
+      tiles: ['https://basemap.nationalmap.gov/arcgis/rest/services/USGSImageryOnly/MapServer/tile/{z}/{y}/{x}'],
       tileSize: 256,
-      maxzoom: 19,
-      attribution: 'Imagery &copy; Esri, Maxar, Earthstar Geographics, USDA FSA',
+      maxzoom: 16,
+      attribution: 'Imagery: <a href="https://basemap.nationalmap.gov/">U.S. Geological Survey (USGS)</a>',
     },
   },
   layers: [

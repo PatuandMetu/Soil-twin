@@ -40,6 +40,10 @@ export default function App() {
     () => (data && ref ? findSimilar(ref, data.chunks, shifted, data.crops) : null),
     [data, ref, shifted],
   )
+  const otherResult = useMemo(
+    () => (data && ref ? findSimilar(ref, data.chunks, !shifted, data.crops) : null),
+    [data, ref, shifted],
+  )
   const regions = useMemo(() => (ref && result ? groupRegions(ref, result.similar) : []), [ref, result])
   const region = regions.find((r) => r.cell === cell) ?? regions[0] ?? null
   const similarStatus = useMemo(
@@ -163,6 +167,7 @@ export default function App() {
         ref,
         shifted,
         result,
+        otherResult,
         regions,
         region,
         compareId,
@@ -170,7 +175,7 @@ export default function App() {
         picked,
         actions,
       },
-    [data, ref, shifted, result, regions, region, compareId, search, picked, actions],
+    [data, ref, shifted, result, otherResult, regions, region, compareId, search, picked, actions],
   )
 
   if (error) return <p className="status">Could not load the data: {error}</p>

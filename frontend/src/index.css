@@ -499,6 +499,63 @@ button {
   margin: 2px 0;
 }
 
+/* 윤작 전략 카드 */
+.rot-card {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin: 8px 0;
+}
+.rot-card.current {
+  border-color: #9fb3c8;
+  background: #f6f9fc;
+}
+.rot-tag {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.rot-key {
+  font-weight: 700;
+  margin: 2px 0 4px;
+}
+.rot-metrics {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px 12px;
+  margin: 6px 0;
+}
+.rot-metrics div {
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+  border-bottom: 1px dotted var(--line);
+}
+.rot-metrics dt {
+  color: var(--muted);
+}
+.rot-metrics dd {
+  margin: 0;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.rot-hint {
+  font-size: 11px;
+}
+.rot-sub {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  margin-top: 6px;
+}
+.rot-benefits ul,
+.rot-check ul {
+  margin: 2px 0 0;
+  padding-left: 18px;
+}
+
 /* ---- 지도 범례 ---- */
 .legend-box {
   display: flex;

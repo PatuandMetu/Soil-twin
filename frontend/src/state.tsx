@@ -51,6 +51,8 @@ export type AppState = {
   ref: Chunk | null
   shifted: boolean
   result: SimilarResult | null
+  /** 다른 기후 모드의 결과 (윤작 카드의 다른 모드 비율용) */
+  otherResult: SimilarResult | null
   regions: Region[]
   /** 지금 보는 지역 (고른 것이 없으면 1위) */
   region: Region | null

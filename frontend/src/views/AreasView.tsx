@@ -4,6 +4,7 @@ import { growingRain, growingTemp, soilSummary } from '../describe'
 import { useAppState } from '../state'
 import { DIRECTION_SHORT, km, latLon, pct, plural } from '../text'
 import { CodesBand, CropBand } from './CropBand'
+import { RotationOptionsSection } from './RotationOptions'
 
 /** 내 밭 요약 + 비슷한 지역 목록 */
 export function AreasView() {
@@ -116,6 +117,7 @@ export function AreasView() {
           </ol>
         </>
       )}
+      <RotationOptionsSection />
     </>
   )
 }

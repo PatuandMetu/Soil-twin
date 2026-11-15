@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { MapView, type MapFocus, type RegionPin } from './components/MapView'
+import { MapView, type MapFocus, type PickedOnMap, type RegionPin } from './components/MapView'
+import { cellIdOf, centroidOf, cropsOf, stateOfFips, type CsbFeature } from './csb'
 import { loadData } from './data'
 import { findSimilar, groupRegions, type Chunk, type CropNames, type Status } from './engine'
 import { PanelHost } from './panels/PanelHost'
 import { geocode, inMainland, nearestChunk, parseCoords } from './search'
 import { usePanels } from './panels/context'
 import { freePadding } from './panels/geometry'
-import { AppStateContext, IDLE_SEARCH, type AppActions, type AppState, type SearchState } from './state'
+import { AppStateContext, IDLE_SEARCH, type AppActions, type AppState, type PickedField, type SearchState } from './state'
 import { km } from './text'
 import { Legend } from './views/Legend'
 import { MAIN_PANELS, mainPanelOptions } from './views/panels'
@@ -29,6 +30,7 @@ export default function App() {
   const [compareId, setCompareId] = useState<string | null>(null)
   const [search, setSearch] = useState<SearchState>(IDLE_SEARCH)
   const [focus, setFocus] = useState<MapFocus | null>(null)
+  const [picked, setPicked] = useState<PickedField | null>(null)
 
   useEffect(() => {
     loadData()
@@ -60,6 +62,7 @@ export default function App() {
     setRefId(id)
     setCell(null)
     setCompareId(null)
+    setPicked(null)
   }, [])
   const selectChunk = useCallback(
     (id: string) => {
@@ -67,6 +70,37 @@ export default function App() {
       setSearch(IDLE_SEARCH)
     },
     [pick],
+  )
+
+  /** 지도에서 실제 밭을 고르면: 밭 중심에서 가장 가까운 표본 밭을 기준 청크로 삼는다 */
+  const pickField = useCallback(
+    (f: CsbFeature) => {
+      if (!data) return
+      const c = centroidOf(f.geometry)
+      const near = nearestChunk(data.chunks, c)
+      if (!near) return
+      const cell = cellIdOf(c.lat, c.lon)
+      pick(near.chunk.chunk_id)
+      setSearch(IDLE_SEARCH)
+      setPicked({
+        csbid: String(f.properties.csbid),
+        acres: Number(f.properties.csbacres),
+        state: stateOfFips(f.properties.statefips),
+        crops: cropsOf(f.properties),
+        geometry: f.geometry,
+        lat: c.lat,
+        lon: c.lon,
+        cell,
+        sampleId: near.chunk.chunk_id,
+        sampleKm: near.km,
+        sameCell: near.chunk.climate_cell === cell,
+      })
+    },
+    [data, pick],
+  )
+  const pickedOnMap = useMemo<PickedOnMap | null>(
+    () => (picked && ref ? { geometry: picked.geometry, from: { lat: picked.lat, lon: picked.lon }, to: { lat: ref.lat, lon: ref.lon } } : null),
+    [picked, ref],
   )
 
   /** 내 밭 검색: 좌표면 바로, 아니면 Nominatim. 가장 가까운 표본 밭을 기준 청크로 */
@@ -152,9 +186,10 @@ export default function App() {
         region,
         compareId,
         search,
+        picked,
         actions,
       },
-    [data, ref, shifted, result, regions, region, compareId, search, actions],
+    [data, ref, shifted, result, regions, region, compareId, search, picked, actions],
   )
 
   if (error) return <p className="status">Could not load the data: {error}</p>
@@ -164,12 +199,15 @@ export default function App() {
     <AppStateContext.Provider value={state}>
       <MapView
         chunks={data.chunks}
+        crops={data.crops}
         refId={ref?.chunk_id ?? null}
         similar={similarStatus}
         regions={pins}
         activeCell={region?.cell ?? null}
         onSelect={selectChunk}
         onSelectRegion={selectRegion}
+        onPickField={pickField}
+        picked={pickedOnMap}
         focus={focus}
         place={search.place}
       />

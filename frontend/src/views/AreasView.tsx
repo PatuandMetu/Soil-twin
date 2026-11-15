@@ -1,12 +1,13 @@
+import { CSB_YEARS } from '../csb'
 import { config, profileOf } from '../engine'
 import { growingRain, growingTemp, soilSummary } from '../describe'
 import { useAppState } from '../state'
 import { DIRECTION_SHORT, km, latLon, pct, plural } from '../text'
-import { CropBand } from './CropBand'
+import { CodesBand, CropBand } from './CropBand'
 
 /** 내 밭 요약 + 비슷한 지역 목록 */
 export function AreasView() {
-  const { chunks, crops, ref, shifted, result, regions, region, search, actions } = useAppState()
+  const { chunks, crops, ref, shifted, result, regions, region, search, picked, actions } = useAppState()
 
   if (!ref || !result)
     return (
@@ -28,9 +29,30 @@ export function AreasView() {
 
   return (
     <>
-      <h3>Your field</h3>
+      {picked && (
+        <>
+          <h3>Your field</h3>
+          <p className="kv">
+            {picked.state} · {latLon(picked.lat, picked.lon)} · {picked.acres.toFixed(1)} acres
+            <br />
+            <span className="muted">USDA Crop Sequence Boundaries field {picked.csbid}, crops 2017–2024</span>
+          </p>
+          <CodesBand years={CSB_YEARS} codes={picked.crops} crops={crops} />
+          <p className={picked.sameCell ? 'note' : 'warn-box'}>
+            Analysis uses the nearest sample field, {km(picked.sampleKm)} away.
+            {!picked.sameCell && (
+              <>
+                <br />
+                <b>No sample field in this climate area — results are less reliable.</b>
+              </>
+            )}
+          </p>
+        </>
+      )}
+      <h3>{picked ? 'Linked sample field' : 'Your field'}</h3>
       <p className="kv">
         Sample field {ref.chunk_id} · {ref.state} · {latLon(ref.lat, ref.lon)} · {Math.round(ref.acres)} acres
+        {picked && <span className="muted"> · crops 2018–2025</span>}
       </p>
       {search.place && (
         <p className="note">

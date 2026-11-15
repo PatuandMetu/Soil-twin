@@ -51,3 +51,32 @@ export function CropBand({ chunk, crops }: { chunk: Chunk; crops: CropNames }) {
     </table>
   )
 }
+
+/** 연도와 작물 코드를 그대로 받는 띠 (USDA CSB 2024판의 2017~2024처럼 표본과 연도가 다를 때) */
+export function CodesBand({ years, codes, crops }: { years: readonly number[]; codes: number[]; crops: CropNames }) {
+  return (
+    <table className="bands">
+      <thead>
+        <tr>
+          {years.map((y) => (
+            <th key={y} className="year">{`'${String(y).slice(2)}`}</th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          {codes.map((code, i) => (
+            <td
+              key={years[i]}
+              className="crop"
+              style={{ background: cropColor(code), color: cropInk(code) }}
+              title={`${years[i]}: ${cropName(code, crops)}`}
+            >
+              {cropShort(code, crops)}
+            </td>
+          ))}
+        </tr>
+      </tbody>
+    </table>
+  )
+}

@@ -5,7 +5,7 @@ import { WARNING_SHORT, km, pct, plural } from '../text'
 
 /** 고른 지역의 항목별 유사율과 실제 값 비교 */
 export function DetailView() {
-  const { ref, shifted, region } = useAppState()
+  const { ref, shifted, region, picked } = useAppState()
   if (!ref) return <p className="empty">Pick your field first.</p>
   if (!region) return <p className="empty">No similar area to show.</p>
 
@@ -25,6 +25,12 @@ export function DetailView() {
         Each score is the median over the {plural(n, 'field')} here{n > 1 ? ' (soil also shows the range)' : ''}. “There”
         soil values are medians too. Climate comes from one ~50 km grid cell, so it is the same for every field in an area.
       </p>
+      {picked && (
+        <p className="note">
+          “You” values come from the linked sample field, {km(picked.sampleKm)} from your field.
+          {!picked.sameCell && ' It is in a different climate area, so results are less reliable.'}
+        </p>
+      )}
       {warned > 0 && (
         <p className="warn">
           {warned} of {plural(n, 'field')} {warned === 1 ? 'has' : 'have'} a growing constraint:{' '}

@@ -7,8 +7,8 @@ export type SearchState = {
   /** 도구줄 아래에 띄우는 한 줄 (없으면 null) */
   message: string | null
   tone: 'info' | 'error'
-  /** 찾은 자리와 거기서 가장 가까운 표본 밭까지 거리 */
-  place: { lat: number; lon: number; label: string; nearestKm: number } | null
+  /** 찾은 자리와 거기서 가장 가까운 표본 밭까지 거리·같은 기후 칸 여부 */
+  place: { lat: number; lon: number; label: string; nearestKm: number; sameCell: boolean } | null
 }
 
 /** 사용자가 지도에서 고른 실제 밭 (USDA CSB 2024)과 연결된 표본 밭 */

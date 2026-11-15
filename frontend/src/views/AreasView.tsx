@@ -46,6 +46,12 @@ export function AreasView() {
                 <b>No sample field in this climate area — results are less reliable.</b>
               </>
             )}
+            {picked.sampleKm > 10 && (
+              <>
+                <br />
+                This demo links pre-sampled fields rather than querying soil live, so soil at your field may differ.
+              </>
+            )}
           </p>
         </>
       )}
@@ -55,8 +61,20 @@ export function AreasView() {
         {picked && <span className="muted"> · crops 2018–2025</span>}
       </p>
       {search.place && (
-        <p className="note">
+        <p className={search.place.sameCell ? 'note' : 'warn-box'}>
           Nearest sample field: {km(search.place.nearestKm)} away from {search.place.label}
+          {!search.place.sameCell && (
+            <>
+              <br />
+              <b>No sample field in this climate area — results are less reliable.</b>
+            </>
+          )}
+          {search.place.nearestKm > 10 && (
+            <>
+              <br />
+              This demo links pre-sampled fields rather than querying soil live, so soil at your field may differ.
+            </>
+          )}
         </p>
       )}
       <CropBand chunk={ref} crops={crops} />

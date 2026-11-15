@@ -23,6 +23,8 @@ type Data = { chunks: Chunk[]; crops: CropNames }
 
 /** 지역으로 옮길 때 이보다 멀면 여기까지 들어간다 (지역 밭들이 점으로 보이는 정도) */
 const REGION_ZOOM = 7
+/** 검색한 자리로 옮길 때 이보다 멀면 여기까지 들어간다 (실제 밭 윤곽선이 바로 보이는 줌) */
+const SEARCH_ZOOM = 13
 
 export default function App() {
   const [data, setData] = useState<Data | null>(null)
@@ -135,17 +137,9 @@ export default function App() {
         busy: false,
         message: `Nearest sample field: ${km(near.km)} away`,
         tone: 'info',
-        place: { ...place, nearestKm: near.km },
+        place: { ...place, nearestKm: near.km, sameCell: near.sameCell },
       })
-      // 지도 칸에는 오른쪽 칸들이 겹치지 않는다. 위는 도구줄·검색 말풍선, 아래는 범례 자리만 비운다
-      setFocus((f) => ({
-        seq: (f?.seq ?? 0) + 1,
-        padding: { top: 150, bottom: 130, left: 40, right: 40 },
-        bounds: [
-          [Math.min(place.lon, near.chunk.lon), Math.min(place.lat, near.chunk.lat)],
-          [Math.max(place.lon, near.chunk.lon), Math.max(place.lat, near.chunk.lat)],
-        ],
-      }))
+      setFocus((f) => ({ seq: (f?.seq ?? 0) + 1, center: [place.lon, place.lat], minZoom: SEARCH_ZOOM }))
     },
     [chunks, pick],
   )

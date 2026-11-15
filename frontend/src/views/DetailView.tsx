@@ -33,6 +33,8 @@ export function DetailView() {
         <p className="note">
           “You” values come from the linked sample field, {km(picked.sampleKm)} from your field.
           {!picked.sameCell && ' It is in a different climate area, so results are less reliable.'}
+          {picked.sampleKm > 10 &&
+            ' This demo links pre-sampled fields rather than querying soil live, so soil at your field may differ.'}
         </p>
       )}
       {warned > 0 && (

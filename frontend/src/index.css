@@ -190,7 +190,29 @@ button {
   display: flex;
   flex-direction: column;
   min-height: 0;
+  position: relative;
   border-left: 1px solid #c8cdd2;
+}
+/* 칸 왼쪽 경계: 끌어서 너비 조절 (경계선 양옆 4 px씩) */
+.col-resizer {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -5px;
+  width: 9px;
+  z-index: 2;
+  cursor: col-resize;
+  touch-action: none;
+}
+.col-resizer:hover,
+.col-resizer.active,
+.col-resizer:focus-visible {
+  background: linear-gradient(90deg, transparent 3px, var(--accent) 3px, var(--accent) 6px, transparent 6px);
+  outline: none;
+}
+.side-cols.resizing {
+  user-select: none;
+  cursor: col-resize;
 }
 .side-head {
   flex: none;

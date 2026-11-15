@@ -7,7 +7,7 @@ import { CropsSection } from './CropsSection'
 /** Detail 탭: 고른 지역의 항목별 유사율과 실제 값 비교(위) + 그 지역의 작물(아래). 한 번에 스크롤 */
 export function DetailView() {
   const { ref, shifted, region, picked } = useAppState()
-  if (!ref) return <p className="empty">Pick your field first.</p>
+  if (!ref) return null
   if (!region) return <p className="empty">No similar area to show.</p>
 
   const rows = describeItems(profileOf(ref, shifted), region)

@@ -454,6 +454,8 @@ export function MapView(props: Props) {
   useEffect(() => {
     const map = mapRef.current
     if (!map || !focus) return
+    // 오른쪽 칸이 막 나와 지도 칸이 좁아졌을 수 있으니 크기를 먼저 맞춘다
+    map.resize()
     map.fitBounds(focus.bounds, { padding: focus.padding, maxZoom: 12, duration: 1200 })
   }, [focus])
 

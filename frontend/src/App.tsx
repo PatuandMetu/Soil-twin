@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react'
 import { MapView, type MapFocus, type PickedOnMap, type RegionPin } from './components/MapView'
 import { cellIdOf, centroidOf, cropsOf, stateOfFips, type CsbFeature } from './csb'
 import { loadData } from './data'
@@ -36,6 +36,11 @@ export default function App() {
   }, [])
 
   const ref = useMemo(() => data?.chunks.find((c) => c.chunk_id === refId) ?? null, [data, refId])
+  // 밭을 고르면 오른쪽 칸이 나온다 (지도 폭은 CSS --side로 줄어든다). 지도 맞추기보다 먼저 바꾸려고 layout effect
+  const sideOpen = ref !== null
+  useLayoutEffect(() => {
+    document.documentElement.classList.toggle('side-open', sideOpen)
+  }, [sideOpen])
   const result = useMemo(
     () => (data && ref ? findSimilar(ref, data.chunks, shifted, data.crops) : null),
     [data, ref, shifted],
@@ -198,7 +203,7 @@ export default function App() {
         place={search.place}
       />
       <Toolbar />
-      <SideColumns />
+      {sideOpen && <SideColumns />}
     </AppStateContext.Provider>
   )
 }

@@ -10,19 +10,8 @@ import { RotationOptionsSection } from './RotationOptions'
 export function AreasView() {
   const { chunks, crops, ref, shifted, result, regions, region, search, picked, actions } = useAppState()
 
-  if (!ref || !result)
-    return (
-      <div className="empty">
-        <p>
-          <b>Pick your field.</b> Click a dot on the map, or search above for a town, an address, or coordinates such as
-          “42.03, -93.62”.
-        </p>
-        <p className="muted">
-          The map shows {chunks.length.toLocaleString('en-US')} sample fields from USDA NASS Crop Sequence Boundaries.
-          Their crops are satellite-classified, not farmer records.
-        </p>
-      </div>
-    )
+  // 오른쪽 칸은 밭을 고른 뒤에만 나온다
+  if (!ref || !result) return null
 
   const now = profileOf(ref)
   const warm = profileOf(ref, true)

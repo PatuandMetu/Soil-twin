@@ -10,7 +10,13 @@
   --info-w: clamp(320px, 25vw, 400px);
   --detail-w: clamp(380px, 25vw, 480px);
   --sidebar-w: calc(var(--info-w) + var(--detail-w));
+  /** 지도 오른쪽에 비울 폭: 밭을 고르기 전에는 0 (오른쪽 칸이 없다) */
+  --side: 0px;
   color-scheme: light;
+}
+/* 밭을 고르면 오른쪽 두 칸이 나오고 지도는 그만큼 좁아진다 */
+:root.side-open {
+  --side: var(--sidebar-w);
 }
 
 html,
@@ -42,7 +48,7 @@ button {
   top: 0;
   bottom: 0;
   left: 0;
-  right: var(--sidebar-w);
+  right: var(--side);
 }
 .map-canvas {
   width: 100%;
@@ -86,7 +92,7 @@ button {
   align-items: center;
   flex-wrap: wrap;
   gap: 8px;
-  max-width: calc(100vw - var(--sidebar-w) - 24px);
+  max-width: calc(100vw - var(--side) - 24px);
   box-sizing: border-box;
   padding: 6px 8px;
   background: #fff;
@@ -185,6 +191,20 @@ button {
   display: grid;
   grid-template-columns: var(--info-w) var(--detail-w);
   background: #fff;
+  animation: side-in 0.22s ease-out;
+}
+@keyframes side-in {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .side-cols {
+    animation: none;
+  }
 }
 .side-col {
   display: flex;

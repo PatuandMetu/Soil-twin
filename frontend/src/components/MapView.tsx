@@ -25,7 +25,7 @@ const US_BOUNDS: [[number, number], [number, number]] = [
   [-65, 51],
 ]
 
-/** 배경: OpenStreetMap 래스터 타일 (API 키 없음) */
+/** 배경: 멀리서는 OpenStreetMap, 확대하면(실제 밭 윤곽선이 나오는 줌) 위성사진 (둘 다 API 키 없음) */
 const BASE_STYLE: StyleSpecification = {
   version: 8,
   sources: {
@@ -37,8 +37,24 @@ const BASE_STYLE: StyleSpecification = {
       attribution:
         '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors · Field boundaries: USDA NASS Crop Sequence Boundaries',
     },
+    satellite: {
+      type: 'raster',
+      tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],
+      tileSize: 256,
+      maxzoom: 19,
+      attribution: 'Imagery &copy; Esri, Maxar, Earthstar Geographics, USDA FSA',
+    },
   },
-  layers: [{ id: 'osm', type: 'raster', source: 'osm' }],
+  layers: [
+    { id: 'osm', type: 'raster', source: 'osm', maxzoom: 13 },
+    {
+      id: 'satellite',
+      type: 'raster',
+      source: 'satellite',
+      minzoom: 11,
+      paint: { 'raster-opacity': ['interpolate', ['linear'], ['zoom'], 11, 0, CSB_MIN_ZOOM, 1] },
+    },
+  ],
 }
 
 const SRC = {
@@ -234,20 +250,20 @@ export function MapView(props: Props) {
       map.addSource(SRC.picked, { type: 'geojson', data: EMPTY })
       map.addSource(SRC.link, { type: 'geojson', data: EMPTY })
 
-      // 실제 밭 윤곽선 (확대했을 때만)
+      // 실제 밭 윤곽선 (확대했을 때만, 위성사진 위에서 잘 보이게 밝은 노란 선)
       map.addLayer({
         id: LAYER.csbFill,
         type: 'fill',
         source: SRC.csb,
         minzoom: CSB_MIN_ZOOM,
-        paint: { 'fill-color': '#fff7d6', 'fill-opacity': 0.25 },
+        paint: { 'fill-color': '#fff7d6', 'fill-opacity': 0.12 },
       })
       map.addLayer({
         id: LAYER.csbLine,
         type: 'line',
         source: SRC.csb,
         minzoom: CSB_MIN_ZOOM,
-        paint: { 'line-color': '#5b6770', 'line-width': ['interpolate', ['linear'], ['zoom'], 12, 0.6, 16, 1.6] },
+        paint: { 'line-color': '#ffd54f', 'line-width': ['interpolate', ['linear'], ['zoom'], 12, 0.8, 16, 1.8] },
       })
       // 고른 실제 밭과 표본 밭까지 잇는 점선
       map.addLayer({

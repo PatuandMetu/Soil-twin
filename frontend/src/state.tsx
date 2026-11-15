@@ -49,7 +49,7 @@ export type AppActions = {
   setShifted: (v: boolean) => void
   /** 지역을 고른다: Comparison 칸이 그 지역으로 바뀌고 그 핀에 작물 팝업이 붙는다 */
   selectRegion: (cell: string) => void
-  /** 지역 팝업을 열고 지도를 그 핀으로 옮긴다 */
+  /** 지역을 고르고(selectRegion) 지도를 그 핀으로 옮긴다. 줌이 7보다 멀면 7까지 */
   showRegionOnMap: (cell: string) => void
   pinRegionPopup: (cell: string) => void
   closeRegionPopup: (cell: string) => void

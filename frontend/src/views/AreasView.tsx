@@ -91,7 +91,7 @@ export function AreasView() {
                 <button
                   type="button"
                   className={`area-row${r.cell === region?.cell ? ' active' : ''}`}
-                  onClick={() => actions.selectRegion(r.cell)}
+                  onClick={() => actions.showRegionOnMap(r.cell)}
                 >
                   <span className="rank">{r.rank}</span>
                   <span className="sim">{pct(r.similarity)}</span>

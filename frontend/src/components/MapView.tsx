@@ -180,10 +180,13 @@ const CSB_STATUS_TEXT: Record<CsbStatus, string> = {
 }
 
 /** 지도를 이 범위로 옮긴다. seq가 바뀔 때마다 한 번 */
-/** 지도를 옮긴다. seq가 바뀔 때마다 한 번: bounds면 그 범위에 맞추고, center면 줌은 그대로 두고 옮긴다 */
+/**
+ * 지도를 옮긴다. seq가 바뀔 때마다 한 번: bounds면 그 범위에 맞추고,
+ * center면 그리로 옮기되 지금 줌이 minZoom보다 멀면 minZoom까지 들어간다(가까우면 줌 유지)
+ */
 export type MapFocus =
   | { seq: number; bounds: [[number, number], [number, number]]; padding: PaddingOptions }
-  | { seq: number; center: [number, number] }
+  | { seq: number; center: [number, number]; minZoom?: number }
 
 /** 지도에 번호로 표시하는 비슷한 지역 */
 export type RegionPin = { cell: string; rank: number; lat: number; lon: number }
@@ -465,7 +468,8 @@ export function MapView(props: Props) {
     if (!map || !focus) return
     // 오른쪽 칸이 막 나와 지도 칸이 좁아졌을 수 있으니 크기를 먼저 맞춘다
     map.resize()
-    if ('center' in focus) map.easeTo({ center: focus.center, duration: 800 })
+    if ('center' in focus)
+      map.easeTo({ center: focus.center, zoom: Math.max(map.getZoom(), focus.minZoom ?? 0), duration: 800 })
     else map.fitBounds(focus.bounds, { padding: focus.padding, maxZoom: 12, duration: 1200 })
   }, [focus])
 

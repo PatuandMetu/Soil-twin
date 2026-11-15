@@ -21,6 +21,9 @@ import { Toolbar } from './views/Toolbar'
 
 type Data = { chunks: Chunk[]; crops: CropNames }
 
+/** 지역으로 옮길 때 이보다 멀면 여기까지 들어간다 (지역 밭들이 점으로 보이는 정도) */
+const REGION_ZOOM = 7
+
 export default function App() {
   const [data, setData] = useState<Data | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -160,7 +163,7 @@ export default function App() {
       const r = regions.find((x) => x.cell === c)
       if (!r) return
       selectRegion(c)
-      setFocus((f) => ({ seq: (f?.seq ?? 0) + 1, center: [r.lon, r.lat] }))
+      setFocus((f) => ({ seq: (f?.seq ?? 0) + 1, center: [r.lon, r.lat], minZoom: REGION_ZOOM }))
     },
     [regions, selectRegion],
   )

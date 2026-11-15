@@ -11,9 +11,10 @@ import {
 } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { CSB_MIN_ZOOM, createCsbLoader, type CsbFeature, type CsbGeometry, type CsbStatus } from '../csb'
 import { cropName, type Chunk, type CropNames, type Status } from '../engine'
+import { MapInstanceContext } from '../mapContext'
 import { MAP_COLOR } from '../mapColors'
 import { Legend } from '../views/Legend'
 
@@ -179,7 +180,10 @@ const CSB_STATUS_TEXT: Record<CsbStatus, string> = {
 }
 
 /** 지도를 이 범위로 옮긴다. seq가 바뀔 때마다 한 번 */
-export type MapFocus = { seq: number; bounds: [[number, number], [number, number]]; padding: PaddingOptions }
+/** 지도를 옮긴다. seq가 바뀔 때마다 한 번: bounds면 그 범위에 맞추고, center면 줌은 그대로 두고 옮긴다 */
+export type MapFocus =
+  | { seq: number; bounds: [[number, number], [number, number]]; padding: PaddingOptions }
+  | { seq: number; center: [number, number] }
 
 /** 지도에 번호로 표시하는 비슷한 지역 */
 export type RegionPin = { cell: string; rank: number; lat: number; lon: number }
@@ -203,6 +207,8 @@ type Props = {
   focus: MapFocus | null
   /** 검색으로 찾은 자리 (핀 표시) */
   place: { lat: number; lon: number; label: string } | null
+  /** 지도에 붙는 팝업들 (지도를 만든 뒤에 그린다) */
+  children?: ReactNode
 }
 
 export function MapView(props: Props) {
@@ -214,6 +220,7 @@ export function MapView(props: Props) {
     handlers.current = props
   })
   const [csbStatus, setCsbStatus] = useState<CsbStatus>('zoom')
+  const [mapInstance, setMapInstance] = useState<MapLibreMap | null>(null)
 
   const marked = useMemo(() => markedOf(chunks, refId, similar), [chunks, refId, similar])
   const markedRef = useRef(marked)
@@ -407,7 +414,9 @@ export function MapView(props: Props) {
     })
 
     mapRef.current = map
+    setMapInstance(map)
     return () => {
+      setMapInstance(null)
       loader.destroy()
       tip.remove()
       map.remove()
@@ -456,7 +465,8 @@ export function MapView(props: Props) {
     if (!map || !focus) return
     // 오른쪽 칸이 막 나와 지도 칸이 좁아졌을 수 있으니 크기를 먼저 맞춘다
     map.resize()
-    map.fitBounds(focus.bounds, { padding: focus.padding, maxZoom: 12, duration: 1200 })
+    if ('center' in focus) map.easeTo({ center: focus.center, duration: 800 })
+    else map.fitBounds(focus.bounds, { padding: focus.padding, maxZoom: 12, duration: 1200 })
   }, [focus])
 
   // 찾은 자리 핀
@@ -481,6 +491,7 @@ export function MapView(props: Props) {
         </div>
         <Legend />
       </div>
+      {mapInstance && <MapInstanceContext.Provider value={mapInstance}>{props.children}</MapInstanceContext.Provider>}
     </div>
   )
 }

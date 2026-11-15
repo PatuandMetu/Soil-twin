@@ -2,11 +2,10 @@ import { profileOf, type Block, type Warning } from '../engine'
 import { describeItems } from '../describe'
 import { useAppState } from '../state'
 import { WARNING_SHORT, km, pct, plural } from '../text'
-import { CropsSection } from './CropsSection'
 
-/** Detail 탭: 고른 지역의 항목별 유사율과 실제 값 비교(위) + 그 지역의 작물(아래). 한 번에 스크롤 */
+/** Detail 칸: 고른 지역의 항목별 유사율과 실제 값 비교. 작물은 지도 위 지역 팝업에서 본다 */
 export function DetailView() {
-  const { ref, shifted, region, picked } = useAppState()
+  const { ref, shifted, region, picked, actions } = useAppState()
   if (!ref) return null
   if (!region) return <p className="empty">No similar area to show.</p>
 
@@ -22,6 +21,9 @@ export function DetailView() {
         <span className="rank">{region.rank}</span> <b>{pct(region.similarity)} similar</b> · {region.states.join('/')} ·{' '}
         {km(region.distanceKm)} {region.direction} of your field · {plural(n, 'field')}
       </p>
+      <button type="button" className="btn" onClick={() => actions.showRegionOnMap(region.cell)}>
+        Show crops on the map
+      </button>
       <h3 className="section">How this area compares</h3>
       <p className="muted">
         Each score is the median over the {plural(n, 'field')} here{n > 1 ? ' (soil also shows the range)' : ''}. “There”
@@ -71,8 +73,6 @@ export function DetailView() {
       ))}
       <p className="muted">Temperature and rainfall scores compare all 12 months (Apr–Sep count double); the lines show Apr–Sep.</p>
 
-      <h3 className="section">Crops in this area</h3>
-      <CropsSection />
     </>
   )
 }

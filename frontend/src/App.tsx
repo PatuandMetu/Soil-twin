@@ -7,13 +7,16 @@ import { geocode, inMainland, nearestSample, parseCoords } from './search'
 import {
   AppStateContext,
   IDLE_SEARCH,
+  NO_REGION_POPUPS,
   type AppActions,
   type AppState,
   type PickedField,
+  type RegionPopupState,
   type SearchState,
 } from './state'
 import { km } from './text'
 import { SideColumns } from './views/panels'
+import { FieldPopup, RegionPopups } from './views/MapPopups'
 import { Toolbar } from './views/Toolbar'
 
 type Data = { chunks: Chunk[]; crops: CropNames }
@@ -24,7 +27,7 @@ export default function App() {
   const [refId, setRefId] = useState<string | null>(null)
   const [shifted, setShifted] = useState(false)
   const [cell, setCell] = useState<string | null>(null)
-  const [compareId, setCompareId] = useState<string | null>(null)
+  const [regionPopups, setRegionPopups] = useState<RegionPopupState>(NO_REGION_POPUPS)
   const [search, setSearch] = useState<SearchState>(IDLE_SEARCH)
   const [focus, setFocus] = useState<MapFocus | null>(null)
   const [picked, setPicked] = useState<PickedField | null>(null)
@@ -60,7 +63,6 @@ export default function App() {
   const pick = useCallback((id: string | null) => {
     setRefId(id)
     setCell(null)
-    setCompareId(null)
     setPicked(null)
   }, [])
   const selectChunk = useCallback(
@@ -146,22 +148,41 @@ export default function App() {
   )
   const selectRegion = useCallback((c: string) => {
     setCell(c)
-    setCompareId(null)
+    // 떠 있는 팝업을 그 지역으로 옮긴다 (이미 고정한 지역이면 그 팝업을 맨 위로)
+    setRegionPopups((p) => ({
+      floating: p.pinned.includes(c) ? p.floating : c,
+      pinned: p.pinned,
+      raised: { cell: c, seq: (p.raised?.seq ?? 0) + 1 },
+    }))
   }, [])
+  const showRegionOnMap = useCallback(
+    (c: string) => {
+      const r = regions.find((x) => x.cell === c)
+      if (!r) return
+      selectRegion(c)
+      setFocus((f) => ({ seq: (f?.seq ?? 0) + 1, center: [r.lon, r.lat] }))
+    },
+    [regions, selectRegion],
+  )
   const actions = useMemo<AppActions>(
     () => ({
       selectChunk,
       clearRef: () => {
         pick(null)
         setSearch(IDLE_SEARCH)
+        setRegionPopups(NO_REGION_POPUPS)
       },
       setShifted,
       selectRegion,
-      setCompare: setCompareId,
+      showRegionOnMap,
+      pinRegionPopup: (c) =>
+        setRegionPopups((p) => ({ ...p, pinned: p.pinned.includes(c) ? p.pinned : [...p.pinned, c], floating: p.floating === c ? null : p.floating })),
+      closeRegionPopup: (c) =>
+        setRegionPopups((p) => ({ ...p, pinned: p.pinned.filter((x) => x !== c), floating: p.floating === c ? null : p.floating })),
       search: (q) => void runSearch(q),
       dismissSearch: () => setSearch((x) => ({ ...x, message: null })),
     }),
-    [pick, selectChunk, selectRegion, runSearch],
+    [pick, selectChunk, selectRegion, showRegionOnMap, runSearch],
   )
 
   const state = useMemo<AppState | null>(
@@ -175,12 +196,12 @@ export default function App() {
         otherResult,
         regions,
         region,
-        compareId,
+        regionPopups,
         search,
         picked,
         actions,
       },
-    [data, ref, shifted, result, otherResult, regions, region, compareId, search, picked, actions],
+    [data, ref, shifted, result, otherResult, regions, region, regionPopups, search, picked, actions],
   )
 
   if (error) return <p className="status">Could not load the data: {error}</p>
@@ -201,7 +222,10 @@ export default function App() {
         picked={pickedOnMap}
         focus={focus}
         place={search.place}
-      />
+      >
+        <FieldPopup />
+        <RegionPopups />
+      </MapView>
       <Toolbar />
       {sideOpen && <SideColumns />}
     </AppStateContext.Provider>

@@ -519,6 +519,67 @@ button {
   margin: 2px 0;
 }
 
+/* 지도에 붙는 작물 팝업 (내 밭, 지역) */
+.map-pop .maplibregl-popup-content {
+  padding: 0;
+  border-radius: 8px;
+  box-shadow: 0 3px 14px rgba(0, 0, 0, 0.22);
+  font-size: 12px;
+  line-height: 1.35;
+}
+.pop-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 6px 5px 8px;
+  background: var(--soft);
+  border-bottom: 1px solid var(--line);
+  border-radius: 8px 8px 0 0;
+}
+.pop-title {
+  flex: 1;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.pop-body {
+  padding: 6px 8px 8px;
+  max-width: 340px;
+}
+.pop-body p {
+  margin: 3px 0 6px;
+}
+.pop-sub {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  margin: 6px 0 2px;
+}
+.pop-btn {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fff;
+  padding: 1px 8px;
+  font-size: 11px;
+  cursor: pointer;
+}
+.pop-btn:hover {
+  background: var(--soft);
+}
+.pop-details {
+  max-height: 320px;
+  max-width: 400px;
+  overflow: auto;
+  margin-top: 6px;
+  border-top: 1px solid var(--line);
+}
+.caveat.small {
+  padding: 2px 6px;
+  font-size: 11px;
+}
+.pop-body .patterns {
+  padding-left: 16px;
+}
+
 /* 윤작 전략 카드 */
 .rot-card {
   border: 1px solid var(--line);
